@@ -82,3 +82,36 @@ export async function wipeAllCopies(): Promise<void> {
       ),
   )
 }
+
+/** Workspaces (other than `except`) whose browser copy holds changes that never reached GitHub, as owner/repo. */
+export async function unsavedElsewhere(except?: RepoRef): Promise<string[]> {
+  const skip = except ? dbName(except) : null
+  const dbs = ((await indexedDB.databases?.()) ?? []).filter((d) => d.name?.startsWith('sprawniej:') && d.name !== skip)
+  const found = await Promise.all(
+    dbs.map(
+      (d) =>
+        new Promise<string | null>((resolve) => {
+          const req = indexedDB.open(d.name!)
+          req.onerror = req.onblocked = () => resolve(null)
+          req.onsuccess = () => {
+            const db = req.result
+            try {
+              const keys = db.transaction('files').objectStore('files').count(IDBKeyRange.bound('pending:', 'pending:￿'))
+              keys.onsuccess = () => {
+                db.close()
+                resolve(keys.result ? d.name!.slice('sprawniej:'.length) : null)
+              }
+              keys.onerror = () => {
+                db.close()
+                resolve(null)
+              }
+            } catch {
+              db.close()
+              resolve(null)
+            }
+          }
+        }),
+    ),
+  )
+  return found.filter((n): n is string => !!n)
+}

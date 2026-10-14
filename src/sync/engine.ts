@@ -118,24 +118,34 @@ export class Workspace {
    * Open a workspace. The leading tab shows the browser copy at once (downloading it first if there is none).
    * Any other tab asks the leader for what it has.
    */
-  static async open(repo: RepoRef, token: string, me: Person): Promise<Workspace> {
+  static async open(repo: RepoRef, token: string, me: Person, signal?: AbortSignal): Promise<Workspace> {
     const ws = new Workspace(repo, token, me)
+    // given up on (the screen went away) before it finished opening: let go of the lock and stop
+    signal?.addEventListener('abort', () => ws.close())
     resetProjection()
     useData.setState({ ...EMPTY, me })
     useSync.setState({ state: 'loading', pending: 0, detail: undefined, progress: undefined, synced: false })
-    const leads = await ws.tabs.lead(() => void ws.takeOver())
-    if (leads) await ws.lead()
-    else await ws.follow()
+    try {
+      const leads = await ws.tabs.lead(() => void ws.takeOver())
+      if (leads) await ws.lead()
+      else await ws.follow()
+    } catch (e) {
+      // a half-opened leader would keep the lock and leave every later try waiting for it
+      ws.close()
+      throw e
+    }
     return ws
   }
 
   /** load the browser copy and start talking to GitHub. `shown` = what this tab shows already (taking over). */
   private async lead(shown?: Map<string, string>) {
-    this.leader = true
     const snap = await this.local.load()
     this.base = snap.base
     this.pending = snap.pending
     this.messages = snap.messages
+    // only now: a change made while the browser copy was loading went the follower's way (unconfirmed), and is
+    // taken in below instead of landing in a `pending` that the snapshot just replaced
+    this.leader = true
     if (snap.meta) this.meta = snap.meta
     else await this.lock(() => this.download())
     if (this.closed) return
@@ -173,9 +183,9 @@ export class Workspace {
   private async takeOver() {
     if (this.closed) return
     this.stopPolling()
-    const shown = this.view
+    // the follower's view stays in use until lead() has loaded, for changes made meanwhile
+    await this.lead(new Map(this.view))
     this.view = new Map()
-    await this.lead(shown)
     this.ready()
   }
 
@@ -460,8 +470,10 @@ export class Workspace {
   private async pull() {
     const head = await getHead(this.token, this.repo, this.meta.branch, this.etag)
     if (head.unchanged) return
-    this.etag = head.etag
-    if (!head.sha || head.sha === this.meta.head) return
+    if (!head.sha || head.sha === this.meta.head) {
+      this.etag = head.etag
+      return
+    }
 
     const commit = await getCommit(this.token, this.repo, head.sha)
     // which files changed, and their new blob ids (null = removed)
@@ -501,6 +513,8 @@ export class Workspace {
       else this.base.set(p, t)
     }
     this.meta = { ...this.meta, head: head.sha, tree: commit.tree.sha }
+    // only now: had anything above failed, the next check must not be told "nothing new" and skip these changes
+    this.etag = head.etag
 
     // two new issues with the same number: ours (not on GitHub yet) moves up
     for (const r of renumber(this.base, this.pending)) {

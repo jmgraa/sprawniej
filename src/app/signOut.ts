@@ -16,3 +16,9 @@ export async function signOutEverywhere() {
   location.hash = '#/'
   location.reload() // closes the open databases so the wipe can finish
 }
+
+/** Back to the workspace list. Changes still waiting are sent first (they'd otherwise wait until you open it again). */
+export async function switchWorkspace() {
+  await workspace()?.flush().catch(() => {})
+  useSession.getState().close()
+}

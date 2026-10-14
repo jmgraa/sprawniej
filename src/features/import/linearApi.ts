@@ -43,6 +43,8 @@ export const SUBSCRIBERS_READ = 30
 
 export interface LIssue {
   id: string
+  /** in Linear's trash (deleted) */
+  trashed?: boolean | null
   number: number
   title: string
   description: string | null
@@ -198,9 +200,9 @@ export async function readTeams(
   const projects = await readProjects(key)
   const issues = await all<LIssue>(
     key,
-    `query($after: String, $teams: [ID!]) { issues(first: 50, after: $after, filter: { team: { id: { in: $teams } } }) { nodes {
-      id number title description priority sortOrder dueDate estimate createdAt updatedAt completedAt canceledAt
-      state { name type } team { id } assignee { id } creator { id } project { id } parent { id } labels(first: 20) { nodes { id } } subscribers(first: ${SUBSCRIBERS_READ}) { nodes { id } }
+    `query($after: String, $teams: [ID!]) { issues(first: 50, after: $after, includeArchived: true, filter: { team: { id: { in: $teams } } }) { nodes {
+      id number title description priority sortOrder dueDate estimate createdAt updatedAt completedAt canceledAt trashed
+      state { name type } team { id } assignee { id } creator { id } project { id } parent { id } labels(first: 50) { nodes { id } } subscribers(first: ${SUBSCRIBERS_READ}) { nodes { id } }
     } ${PAGE} } }`,
     { teams: teamIds },
     (x: { issues: Page<LIssue> }) => x.issues,
@@ -208,7 +210,7 @@ export async function readTeams(
   )
   const comments = await all<LComment>(
     key,
-    `query($after: String, $teams: [ID!]) { comments(first: 100, after: $after, filter: { issue: { team: { id: { in: $teams } } } }) { nodes {
+    `query($after: String, $teams: [ID!]) { comments(first: 100, after: $after, includeArchived: true, filter: { issue: { team: { id: { in: $teams } } } }) { nodes {
       id body createdAt user { id name } issue { id }
     } ${PAGE} } }`,
     { teams: teamIds },
@@ -220,7 +222,10 @@ export async function readTeams(
     if (e instanceof LinearError && e.badKey) throw e
     return { views: [], states: [], viewsFailed: true }
   })
-  return { labels, projects, issues, comments, ...extra }
+  // archived issues come along (Linear archives finished work after a while); ones in Linear's trash don't
+  const kept = issues.filter((i) => !i.trashed)
+  const keptIds = new Set(kept.map((i) => i.id))
+  return { labels, projects, issues: kept, comments: comments.filter((c) => !c.issue || keptIds.has(c.issue.id)), ...extra }
 }
 
 /** custom views, and the workflow states their filters name; views are a nice extra, so a failure here isn't fatal */

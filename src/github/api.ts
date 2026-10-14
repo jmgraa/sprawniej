@@ -284,13 +284,19 @@ export async function getBlobs(token: string, r: RepoRef, shas: string[]): Promi
   const one = async (chunk: string[]) => {
     const fields = chunk.map((sha, j) => `b${j}: object(oid: "${sha}") { ... on Blob { text isBinary isTruncated } }`).join('\n')
     const query = `query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { ${fields} } }`
-    const { data } = await request<{ data?: { repository: Record<string, { text: string | null; isBinary: boolean; isTruncated: boolean } | null> }; errors?: { message: string }[] }>(
+    const { data, res } = await request<{ data?: { repository: Record<string, { text: string | null; isBinary: boolean; isTruncated: boolean } | null> }; errors?: { type?: string; message: string }[] }>(
       token,
       'POST',
       '/graphql',
       { body: { query, variables: { owner: r.owner, name: r.repo } } },
     )
-    if (!data.data) throw new Error(data.errors?.[0]?.message ?? 'GitHub couldn’t send the files.')
+    if (!data.data) {
+      const e = data.errors?.[0]
+      // GraphQL says "too many requests" with a 200: treat it like REST's, so saving waits instead of failing
+      if (e && (e.type === 'RATE_LIMITED' || /rate limit/i.test(e.message)))
+        throw new GitHubError(403, 'GitHub asked us to slow down for a moment.', retryAtFrom(403, res.headers, e.message))
+      throw new Error(e?.message ?? 'GitHub couldn’t send the files.')
+    }
     for (const [j, sha] of chunk.entries()) {
       const b = data.data.repository[`b${j}`]
       if (b && !b.isBinary && !b.isTruncated && b.text !== null) out.set(sha, b.text)

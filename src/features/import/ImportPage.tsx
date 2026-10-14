@@ -298,9 +298,10 @@ export function ImportPage() {
               onClick={() => {
                 const keys = [...new Set(Object.values(choices.teamKeys))]
                 setStage({ at: 'saving', saved: 0, total: plan.files.size })
-                void importFiles(plan.files, `Import from Linear: ${c.issues} issues`, (saved, total) => setStage({ at: 'saving', saved, total })).then(() =>
-                  setStage({ at: 'done', result: plan, keys }),
-                )
+                // everything is kept on this device as it goes; if sending stalls, it carries on by itself like any change
+                void importFiles(plan.files, `Import from Linear: ${c.issues} issues`, (saved, total) => setStage({ at: 'saving', saved, total }))
+                  .catch((e: unknown) => console.warn('Sprawniej: the import is still being saved', e))
+                  .finally(() => setStage({ at: 'done', result: plan, keys }))
               }}
             >
               Import

@@ -39,7 +39,8 @@ function Loader({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!repo || !user) return
     let stop = false
-    Workspace.open(repo, token, user).then(
+    const giveUp = new AbortController()
+    Workspace.open(repo, token, user, giveUp.signal).then(
       (ws) => {
         if (stop) return ws.close()
         setWorkspace(ws)
@@ -58,6 +59,7 @@ function Loader({ children }: { children: ReactNode }) {
     )
     return () => {
       stop = true
+      giveUp.abort()
       setWorkspace(null)
     }
   }, [repo, token, user])

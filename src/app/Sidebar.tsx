@@ -11,7 +11,7 @@ import { TeamMenu } from '@/features/teams/TeamMenu'
 import { TeamsDialog } from '@/features/teams/TeamsDialog'
 import { openComposer } from '@/features/issues/composer'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
-import { useSession } from '@/session'
+import { switchWorkspace } from '@/app/signOut'
 import { cn } from '@/lib/utils'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/ui/dropdown-menu'
 
@@ -103,7 +103,7 @@ function Me() {
             <CircleHelp /> Help
           </Link>
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => useSession.getState().close()}>
+        <DropdownMenuItem onSelect={() => void switchWorkspace()}>
           <Repeat /> Switch workspace
         </DropdownMenuItem>
         <DropdownMenuItem asChild>

@@ -42,6 +42,8 @@ The code: `src/features/import/linearApi.ts` reads Linear, `linearMap.ts` turns 
 | Created, updated, completed dates | Kept |
 | Custom view (name, icon, description, filters) | View: a team's view stays with that team, a workspace view shows the whole workspace. See below for filters. |
 
+Issues Linear has archived come along too, with their comments. Issues in Linear's trash don't.
+
 Issues finished longer ago than the team keeps finished issues (six months unless it says otherwise) go straight
 into the team's archive files, with their comments, instead of becoming a file each. They keep their numbers and can
 be searched, opened and restored like any archived issue.

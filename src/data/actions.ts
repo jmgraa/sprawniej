@@ -413,6 +413,9 @@ function mendArchive() {
 
 const tidyBody = (body: string) => body.replace(/\s+$/, '')
 
+/** where a comment's file really is (usually under the issue's team, but not if the issue moved meanwhile) */
+const commentPath = (id: string) => pathOf((p) => p.kind === 'comment' && p.value.id === id)
+
 export function createComment(issueId: string, body: string): Comment | undefined {
   const s = useData.getState()
   const issue = s.issues[issueId]
@@ -432,6 +435,9 @@ export function updateComment(issueId: string, id: string, body: string) {
   if (!issue || !old || !s.me || old.author !== s.me.login || !body.trim() || tidyBody(body) === old.body) return
   const next: Comment = { ...old, body: tidyBody(body), editedAt: now() }
   const files = one(paths.comment(issue.team, next), commentFile(next))
+  // written in the issue's old team while a teammate moved the issue: it moves along now
+  const was = commentPath(id)
+  if (was && was !== paths.comment(issue.team, next)) files.set(was, null)
   addNotes(files, issueId, commentNotes(issue, next, old.body, [], s.me.login, s.people))
   save(files, `${issueRef(issue)}: edit comment`)
 }
@@ -441,7 +447,7 @@ export function deleteComment(issueId: string, id: string) {
   const issue = s.issues[issueId]
   const old = s.comments[issueId]?.find((c) => c.id === id)
   if (!issue || !old || !s.me || old.author !== s.me.login) return
-  const files = one(paths.comment(issue.team, old), null)
+  const files = one(commentPath(id) ?? paths.comment(issue.team, old), null)
   dropNotes(files, (n) => n.comment === id)
   save(files, `${issueRef(issue)}: delete comment`)
 }

@@ -247,6 +247,19 @@ describe('building the import', () => {
   })
 })
 
+test('a second import never gives a new issue a number an earlier import already used', () => {
+  const native = (n: number): Issue => ({ id: `mine${n}`, team: 'ENG', number: n, title: `Made here ${n}`, description: '', status: 'todo', priority: 0, assignee: null, labels: [], project: null, parent: null, sortOrder: `a${n}`, createdBy: 'mikolaj', createdAt: '', updatedAt: '' })
+  const existing = { ...empty(), teams: { ENG: { key: 'ENG', name: 'Eng', emoji: '🛠️', members: [], createdAt: '' } }, issues: { mine1: native(1), mine2: native(2), mine3: native(3) } }
+  const first = buildImport(data, choices, existing, ids(), 'now')
+  const after = read(first.files)
+  const ws2 = { ...existing, teams: { ...existing.teams, ...after.teams }, issues: { ...existing.issues, ...after.issues }, labels: after.labels, projects: after.projects }
+  const more = { ...data, issues: [...data.issues, { ...data.issues[2], id: 'i-4', number: 4, title: 'Brand new' }, { ...data.issues[2], id: 'i-5', number: 5, title: 'Newer still' }] }
+  const second = buildImport(more, choices, ws2, ids(), 'later')
+  const final = { ...ws2.issues, ...read(second.files).issues }
+  const eng = Object.values(final).filter((i) => i.team === 'ENG').map((i) => i.number)
+  expect(new Set(eng).size).toBe(eng.length)
+})
+
 test('a Linear team that joins a team here is remembered', () => {
   const existing = { ...empty(), teams: { ENG: { key: 'ENG', name: 'Eng', emoji: '🛠️', members: ['mikolaj'], createdAt: '' } } }
   const r = buildImport(data, choices, existing, ids(), 'now')

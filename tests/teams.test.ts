@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
 import { archiveIssues, createComment, createIssue, createProject, createView, deleteTeam, joinTeam, leaveTeam, updateIssue, updateTeam } from '@/data/actions'
-import { jsonToFile, paths } from '@/data/files'
+import { issueToFile, jsonToFile, paths } from '@/data/files'
 import { applyFiles, archiveFiles, parsedFiles, resetProjection } from '@/data/project'
 import { EMPTY, useData } from '@/data/store'
 import { DEFAULT_DISPLAY } from '@/data/displays'
@@ -60,4 +60,12 @@ describe('teams', () => {
     expect(s.views[engView.id]).toBeUndefined()
     expect(s.views[wide.id]).toBeDefined()
   })
+})
+
+test('an issue that moved to another team stays on screen, whichever order the paths arrive in', () => {
+  const issue = createIssue({ team: 'ENG', title: 'Moves around' })
+  const moved = { ...issue, team: 'DES', number: 1 }
+  // the new place first, then the old one gone (the order a pull can bring them in)
+  applyFiles(new Map([[paths.issue(moved), issueToFile(moved)], [paths.issue(issue), null]]), 'ana')
+  expect(state().issues[issue.id]).toMatchObject({ team: 'DES', number: 1 })
 })
