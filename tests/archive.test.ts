@@ -49,7 +49,8 @@ describe('archiving', () => {
     expect(archiveIssues([parent.id])).toBe(2)
     expect(Object.keys(state().archive).sort()).toEqual([parent.id, child.id].sort())
     restoreIssue(parent.id)
-    restoreIssue(child.id)
+    // the sub-issue archived with it comes back too
+    expect(state().issues[child.id]).toMatchObject({ title: 'Child', parent: parent.id, number: child.number })
     expect(state().issues[parent.id]).toMatchObject({ title: 'Parent', number: parent.number })
     expect(state().comments[parent.id]?.map((c) => c.body)).toEqual(['note'])
     expect(state().archive).toEqual({})

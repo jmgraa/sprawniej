@@ -328,21 +328,34 @@ export function archiveIssues(ids: string[], { auto = false } = {}): number {
   return n
 }
 
-/** Bring an archived issue back, with its comments, where it was. Needs the archive loaded (loadArchive). */
+/**
+ * Bring an archived issue back, with its comments, where it was. Sub-issues that were archived together with it come
+ * back too. Needs the archive loaded (loadArchive).
+ */
 export function restoreIssue(id: string): Issue | undefined {
   const s = useData.getState()
   const a = s.archive[id]
   if (!a || s.issues[id]) return s.issues[id]
-  const { archivedAt: _at, archivedBy: _by, comments, ...rest } = a
+  const all = [a]
+  for (let k = 0; k < all.length; k++) {
+    for (const c of Object.values(s.archive)) if (c.parent === all[k].id && c.archivedAt === a.archivedAt && !s.issues[c.id] && !all.includes(c)) all.push(c)
+  }
   const files = new Map<string, string | null>()
-  for (const path of archivePathsOf(a.team, id)) editArchive(files, path, a.team, (old) => old.filter((r) => r.id !== id))
-  // a number someone took meanwhile (only by editing files by hand) means a new one
-  const taken = Object.values(s.issues).some((i) => i.team === a.team && i.number === a.number)
-  const issue: Issue = { ...rest, number: taken ? nextNumber(a.team) : a.number, updatedAt: now() }
-  files.set(paths.issue(issue), issueToFile(issue))
-  for (const c of comments) files.set(paths.comment(a.team, c), commentFile(c))
-  save(files, `Restore ${issueRef(issue)}`)
-  return issue
+  const restored: Issue[] = []
+  let bump = 0
+  for (const r of all) {
+    const { archivedAt: _at, archivedBy: _by, comments, ...rest } = r
+    for (const path of archivePathsOf(r.team, r.id)) editArchive(files, path, r.team, (old) => old.filter((x) => x.id !== r.id))
+    // a number someone took meanwhile (only by editing files by hand) means a new one
+    const taken = Object.values(s.issues).some((i) => i.team === r.team && i.number === r.number)
+    const issue: Issue = { ...rest, number: taken ? nextNumber(r.team) + bump++ : r.number, updatedAt: now() }
+    files.set(paths.issue(issue), issueToFile(issue))
+    for (const c of comments) files.set(paths.comment(r.team, c), commentFile(c))
+    restored.push(issue)
+  }
+  const n = restored.length - 1
+  save(files, n ? `Restore ${issueRef(restored[0])} and ${n} sub-issue${n === 1 ? '' : 's'}` : `Restore ${issueRef(restored[0])}`)
+  return restored[0]
 }
 
 /** a moment `months` months before `at`, as ISO */
@@ -544,7 +557,21 @@ export function deleteLabel(id: string) {
   for (const i of Object.values(s.issues)) {
     if (i.labels.includes(id)) files.set(paths.issue(i), issueToFile({ ...i, labels: i.labels.filter((l) => l !== id), updatedAt: now() }))
   }
+  dropFromViews(files, 'labels', id)
   save(files, `Delete label ${label.name}`)
+}
+
+/** a label, project or team that's gone comes out of every saved view's filters (else the view shows its id) */
+function dropFromViews(files: Map<string, string | null>, field: 'labels' | 'projects' | 'teams', id: string) {
+  for (const v of Object.values(useData.getState().views)) {
+    if (files.has(paths.view(v.id))) continue // being deleted already
+    const list = v.filters[field] as (string | null)[] | undefined
+    if (!list?.includes(id)) continue
+    const rest = list.filter((x) => x !== id)
+    const filters = { ...v.filters, [field]: rest }
+    if (!rest.length) delete filters[field]
+    files.set(paths.view(v.id), jsonToFile({ ...v, filters }))
+  }
 }
 
 // ---------- views ----------
@@ -639,6 +666,7 @@ export function deleteProject(id: string) {
   if (!project) return
   const files = new Map<string, string | null>([[paths.project(id), null]])
   for (const i of Object.values(s.issues)) if (i.project === id) files.set(paths.issue(i), issueToFile({ ...i, project: null, updatedAt: now() }))
+  dropFromViews(files, 'projects', id)
   save(files, `Delete project ${project.emoji} ${project.name}`)
 }
 
@@ -703,6 +731,7 @@ export function deleteTeam(key: string) {
     if (i.team !== key && i.parent && gone.has(i.parent)) files.set(paths.issue(i), issueToFile({ ...i, parent: null, updatedAt: now() }))
   }
   for (const v of Object.values(s.views)) if (v.team === key) files.set(paths.view(v.id), null)
+  dropFromViews(files, 'teams', key)
   for (const p of Object.values(s.projects)) if (p.teams.includes(key)) files.set(paths.project(p.id), jsonToFile({ ...p, teams: p.teams.filter((t) => t !== key) }))
   dropNotes(files, (n) => gone.has(n.issue))
   save(files, `Delete team ${team.emoji} ${team.name}`)

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
-import { archiveIssues, createComment, createIssue, createProject, createView, deleteTeam, joinTeam, leaveTeam, updateIssue, updateTeam } from '@/data/actions'
+import { archiveIssues, createComment, createIssue, createLabel, createProject, createView, deleteLabel, deleteProject, deleteTeam, joinTeam, leaveTeam, updateIssue, updateTeam } from '@/data/actions'
 import { issueToFile, jsonToFile, paths } from '@/data/files'
 import { applyFiles, archiveFiles, parsedFiles, resetProjection } from '@/data/project'
 import { EMPTY, useData } from '@/data/store'
@@ -68,4 +68,15 @@ test('an issue that moved to another team stays on screen, whichever order the p
   // the new place first, then the old one gone (the order a pull can bring them in)
   applyFiles(new Map([[paths.issue(moved), issueToFile(moved)], [paths.issue(issue), null]]), 'ana')
   expect(state().issues[issue.id]).toMatchObject({ team: 'DES', number: 1 })
+})
+
+test('deleting a label, project or team takes it out of saved views', () => {
+  const label = createLabel('Bug')
+  const keep = createLabel('Design')
+  const project = createProject({ name: 'Launch', emoji: '🚀', teams: ['ENG'] })
+  const view = createView({ name: 'Mixed', emoji: '🧪', team: null, filters: { labels: [label.id, keep.id], projects: [project.id], teams: ['DES', 'ENG'] }, display: DEFAULT_DISPLAY })
+  deleteLabel(label.id)
+  deleteProject(project.id)
+  deleteTeam('DES')
+  expect(state().views[view.id].filters).toEqual({ labels: [keep.id], teams: ['ENG'] })
 })

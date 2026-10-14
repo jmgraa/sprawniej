@@ -11,6 +11,7 @@ import { PersonAvatar } from '@/components/Avatar'
 import { importFiles } from '@/data/actions'
 import { loadArchive } from '@/data/project'
 import { useData } from '@/data/store'
+import { useSync } from '@/sync/engine'
 import { Problem } from '@/features/onboarding/Step'
 import { cn } from '@/lib/utils'
 import { Button } from '@/ui/button'
@@ -68,6 +69,7 @@ function doneText(c: ImportResult['counts']): string {
 export function ImportPage() {
   useCrumbs([{ label: 'Settings', href: '/settings' }, { label: 'Import from Linear' }])
   const [stage, setStage] = useState<Stage>({ at: 'key' })
+  const saveState = useSync((s) => s.state)
   const [key, setKey] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
   const [problem, setProblem] = useState<string | null>(null)
@@ -319,8 +321,8 @@ export function ImportPage() {
         </ul>
         {c.archived > 0 && (
           <p className="mt-5 text-sm text-muted-foreground">
-            {c.archived === 1 ? 'One of the issues was finished long ago, so it goes' : `${c.archived.toLocaleString()} of the issues were finished long ago, so they go`} to the
-            archive. You can still find and open {c.archived === 1 ? 'it' : 'them'}.
+            {c.archived === 1 ? 'One of the issues goes' : `${c.archived.toLocaleString()} of the issues go`} to the archive or stay there: finished long ago, or
+            archived here already. You can still find and open {c.archived === 1 ? 'it' : 'them'}.
           </p>
         )}
         {plan.skippedViews.length > 0 && (
@@ -371,10 +373,15 @@ export function ImportPage() {
 
   if (stage.at === 'done') {
     return (
-      <Panel step={4} title="All done">
+      <Panel step={4} title={saveState === 'saved' ? 'All done' : 'Imported, still saving'}>
         <p className="flex items-center gap-2">
           <CheckCircle2 className="size-5 text-status-review" /> {doneText(stage.result.counts)}
         </p>
+        {saveState !== 'saved' && (
+          <p className="mt-3 text-sm text-muted-foreground">
+            It's all kept on this device and reaches GitHub by itself as soon as it can. Keep Sprawniej open until the sign at the top says Saved.
+          </p>
+        )}
         <div className="mt-6 flex flex-wrap gap-3">
           {stage.keys.map((k) => (
             <Button key={k} asChild variant="outline">
