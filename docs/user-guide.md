@@ -43,10 +43,12 @@ An **issue** is one piece of work: a task, a bug, an idea. Each has a short ID l
 - **Create one:** press **C** anywhere, the pencil next to "Sprawniej" at the top left, or the **+** next to a group.
   Give it a title; status, priority, assignee, labels, project, parent, due date and estimate are optional buttons
   below.
-  Press `⌘` `Enter` (or `Ctrl` `Enter`) to create it. Tick **Create more** to add several in a row.
+  Press `⌘` `Enter` (or `Ctrl` `Enter`) to create it. Tick **Create more** to add several in a row. Closed it by
+  accident? What you typed comes back the next time you start a new issue.
 - **Open one:** click it. Change the title, description or any property on the right. It saves by itself.
 - **Labels:** in the labels menu, type a name that doesn't exist yet and choose **Create label**.
-- **Move to another team:** change **Team** on the right. The issue gets that team's next number.
+- **Move to another team:** change **Team** on the right. The issue gets that team's next number; links and mentions
+  of its old number still open it.
 - **Archive:** the `⋯` button next to the title, then **Archive** (see Archive below).
 - **Delete:** the `⋯` button next to the title, then **Delete issue**.
 - **Links and formatting:** paste a link and it becomes clickable. Select some words and paste a link to turn
