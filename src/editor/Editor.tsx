@@ -170,10 +170,7 @@ export function Editor({ value, onChange, placeholder = 'Add a description…', 
     const mine = tidyMarkdown(editor.getMarkdown())
     const merged = mine === base ? value : mergeText(base, mine, value)
     if (merged === mine) return
-    const { from, to } = editor.state.selection
-    editor.commands.setContent(merged, { contentType: 'markdown', emitUpdate: false })
-    const end = editor.state.doc.content.size
-    editor.commands.setTextSelection({ from: Math.min(from, end), to: Math.min(to, end) })
+    replaceChanged(editor, merged)
     // what you added is still to be saved: `lastSent` is their text, the editor has both
     if (merged !== value) {
       clearTimeout(timer.current)
@@ -186,3 +183,29 @@ export function Editor({ value, onChange, placeholder = 'Add a description…', 
 
 /** headings, lists, checklists, quotes, code fences, bold or links at the start of a line or inline */
 const looksLikeMarkdown = (text: string) => /^(#{1,6} |[-*+] |\d+\. |> |```|[-*] \[[ xX]\] )/m.test(text) || /\*\*[^*\n]+\*\*|\[[^\]\n]+\]\([^)\s]+\)/.test(text)
+
+/**
+ * Show new text in an editor you're typing in by replacing only the part that differs, so your cursor moves along
+ * with your own words (a teammate's line above them pushes it down instead of leaving it behind).
+ */
+function replaceChanged(editor: NonNullable<ReturnType<typeof useEditor>>, markdown: string) {
+  const json = editor.markdown?.parse(markdown)
+  if (!json) {
+    editor.commands.setContent(markdown, { contentType: 'markdown', emitUpdate: false })
+    return
+  }
+  const next = editor.schema.nodeFromJSON(json)
+  const { doc, tr } = editor.state
+  const start = doc.content.findDiffStart(next.content)
+  if (start === null) return
+  let { a: endA, b: endB } = doc.content.findDiffEnd(next.content)!
+  // the same characters on both sides of the change: keep the ends from crossing the start
+  const overlap = start - Math.min(endA, endB)
+  if (overlap > 0) {
+    endA += overlap
+    endB += overlap
+  }
+  tr.replace(start, endA, next.slice(start, endB))
+  tr.setMeta('preventUpdate', true)
+  editor.view.dispatch(tr)
+}

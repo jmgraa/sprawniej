@@ -34,11 +34,16 @@ export function retryAtFrom(status: number, headers: Headers, message: string, n
 
 /** GitHub refused the key: it was revoked, expired or mistyped */
 export const isBadKey = (e: unknown) => e instanceof GitHubError && e.status === 401
-/** no network (fetch itself failed) */
-export const isOffline = (e: unknown) => e instanceof TypeError || (typeof navigator !== 'undefined' && !navigator.onLine)
+/** no network (fetch itself failed), or GitHub didn't answer in time: both are tried again on their own */
+export const isOffline = (e: unknown) =>
+  e instanceof TypeError || (e as Error)?.name === 'TimeoutError' || (typeof navigator !== 'undefined' && !navigator.onLine)
+
+/** a request GitHub never answers would otherwise hold up every save after it */
+const REQUEST_TIMEOUT = 60_000
 
 /** any GitHub problem, in words a teammate understands */
 export function plainError(e: unknown): string {
+  if ((e as Error)?.name === 'TimeoutError') return 'GitHub is taking too long to answer. Try again in a moment.'
   if (isOffline(e)) return 'You seem to be offline. Connect to the internet and try again.'
   if (isBadKey(e)) return 'Your GitHub key doesn’t work any more. Make a new one and sign in again.'
   if (e instanceof GitHubError && e.retryAt) return 'GitHub asks us to wait a little. Try again in a minute.'
@@ -62,6 +67,7 @@ export async function request<T>(token: string, method: string, path: string, op
     headers,
     cache: 'no-store',
     body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT),
   })
   if (res.status === 304) return { data: undefined as T, res }
   if (!res.ok) {
