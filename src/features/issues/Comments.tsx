@@ -37,7 +37,7 @@ function CommentItem({ comment, mine }: { comment: Comment; mine: boolean }) {
         {mine && !editing && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon-sm" className="ml-auto opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100" aria-label="Comment actions">
+              <Button variant="ghost" size="icon-sm" className="ml-auto [@media(hover:hover)]:opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100" aria-label="Comment actions">
                 <MoreHorizontal />
               </Button>
             </DropdownMenuTrigger>

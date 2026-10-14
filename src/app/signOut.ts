@@ -4,8 +4,8 @@ import { useSession } from '@/session'
 import { setWorkspace, workspace } from '@/sync/engine'
 import { wipeAllCopies } from '@/sync/local'
 
-/** Forget the key and every workspace copy in this browser, then start over at the welcome screen. */
-export async function signOutEverywhere() {
+/** Forget the key and every workspace copy in this browser, then start over at the welcome screen (or at `then`). */
+export async function signOutEverywhere(then = '#/') {
   workspace()?.restartOtherTabs() // other tabs with this workspace start over too
   setWorkspace(null)
   await wipeAllCopies()
@@ -13,7 +13,7 @@ export async function signOutEverywhere() {
   useData.setState({ ...EMPTY })
   useSession.getState().signOut()
   localStorage.removeItem('sprawniej-displays')
-  location.hash = '#/'
+  location.hash = then
   location.reload() // closes the open databases so the wipe can finish
 }
 

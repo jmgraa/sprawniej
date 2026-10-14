@@ -52,9 +52,16 @@ export function LabelsSettings() {
         return (
           <div key={l.id} className="group flex h-11 items-center gap-2 rounded-md px-1 hover:bg-accent/40">
             <ColorButton label={l} />
-            <InlineText value={l.name} onSave={(v) => updateLabel(l.id, { name: v })} label={`Name of ${l.name}`} required className="h-8 text-[15px]" />
+            <InlineText
+              value={l.name}
+              onSave={(v) => updateLabel(l.id, { name: v })}
+              allowed={(v) => !labels.some((o) => o.id !== l.id && o.name.toLowerCase() === v.toLowerCase())}
+              label={`Name of ${l.name}`}
+              required
+              className="h-8 text-[15px]"
+            />
             <span className="w-24 shrink-0 text-right text-sm text-muted-foreground tabular-nums">{n === 1 ? '1 issue' : `${n} issues`}</span>
-            <Button variant="ghost" size="icon-sm" className="text-muted-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100" aria-label={`Delete ${l.name}`} onClick={() => setDeleting(l)}>
+            <Button variant="ghost" size="icon-sm" className="text-muted-foreground [@media(hover:hover)]:opacity-0 group-hover:opacity-100 focus-visible:opacity-100" aria-label={`Delete ${l.name}`} onClick={() => setDeleting(l)}>
               <Trash2 />
             </Button>
           </div>

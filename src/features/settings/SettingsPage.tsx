@@ -5,7 +5,8 @@ import { toast } from 'sonner'
 import { Link } from 'wouter'
 import { useShallow } from 'zustand/react/shallow'
 import { useCrumbs } from '@/app/chrome'
-import { signOutEverywhere, switchWorkspace } from '@/app/signOut'
+import { switchWorkspace } from '@/app/signOut'
+import { useSignOut } from '@/components/SignOut'
 import { PersonAvatar } from '@/components/Avatar'
 import { renameWorkspace, setAutoArchive } from '@/data/actions'
 import { AUTO_ARCHIVE_MONTHS, isGuest } from '@/model/schema'
@@ -14,10 +15,7 @@ import { inviteMessage, joinLink } from '@/features/onboarding/joinLink'
 import { Problem } from '@/features/onboarding/Step'
 import { getRepo, GitHubError, invite, listSentInvitations, plainError, repoKey, type SentInvitation } from '@/github/api'
 import { useSession } from '@/session'
-import { workspace } from '@/sync/engine'
-import { unsavedElsewhere } from '@/sync/local'
 import { Button } from '@/ui/button'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@/ui/dialog'
 import { Input } from '@/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select'
 import { LabelsSettings } from './LabelsSettings'
@@ -200,26 +198,7 @@ function JoinLinkFor({ login, link, wsName }: { login: string; link: string | nu
 
 function Account() {
   const user = useSession((s) => s.user)
-  const repo = useSession((s) => s.workspace)
-  /** what isn't saved yet: 'here' = this workspace, else the other workspaces with changes still waiting */
-  const [unsaved, setUnsaved] = useState<'here' | string[] | null>(null)
-  const [busy, setBusy] = useState(false)
-
-  async function signOut(force = false) {
-    setBusy(true)
-    const ws = workspace()
-    if (!force) {
-      if (ws?.hasUnsaved) await ws.flush()
-      // signing out wipes every workspace's copy in this browser, including changes made elsewhere and not saved yet
-      const waiting = ws?.hasUnsaved ? 'here' : await unsavedElsewhere(repo ?? undefined)
-      if (waiting === 'here' || waiting.length) {
-        setBusy(false)
-        setUnsaved(waiting)
-        return
-      }
-    }
-    await signOutEverywhere()
-  }
+  const { signOut, busy, dialog } = useSignOut()
 
   return (
     <div className="flex flex-col gap-5">
@@ -234,29 +213,12 @@ function Account() {
         <Button variant="outline" size="lg" onClick={() => void switchWorkspace()}>
           <Repeat /> Switch workspace
         </Button>
-        <Button variant="outline" size="lg" disabled={busy} onClick={() => void signOut()}>
+        <Button variant="outline" size="lg" disabled={busy} onClick={signOut}>
           {busy ? <Loader2 className="animate-spin" /> : <LogOut />} Sign out
         </Button>
       </div>
       <p className="text-sm text-muted-foreground">Signing out removes your GitHub key and the workspace copy from this browser. Do it on shared computers.</p>
-      <Dialog open={!!unsaved} onOpenChange={(open) => !open && setUnsaved(null)}>
-        <DialogContent>
-          <DialogTitle>Some changes haven't been saved to GitHub yet</DialogTitle>
-          <DialogDescription>
-            {unsaved === 'here' || !unsaved
-              ? 'You seem to be offline. If you sign out now, those changes are lost. Connect to the internet and wait for "Saved" first.'
-              : `You changed ${unsaved.length === 1 ? 'another workspace' : 'other workspaces'} (${unsaved.join(', ')}) and those changes haven't reached GitHub. If you sign out now, they are lost. Open ${unsaved.length === 1 ? 'it' : 'each one'} while online and wait for "Saved" first.`}
-          </DialogDescription>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setUnsaved(null)}>
-              Stay signed in
-            </Button>
-            <Button variant="destructive" onClick={() => void signOut(true)}>
-              Sign out anyway
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {dialog}
     </div>
   )
 }

@@ -1,6 +1,6 @@
 /**
- * The app's version and its changelog: one list, used by "What's new" in the app and by
- * `scripts/changelog.ts` (which writes CHANGELOG.md from it). Newest release first.
+ * The app's version and its changelog: one list, which `scripts/changelog.ts` turns into CHANGELOG.md.
+ * Newest release first. (The app doesn't show it anywhere yet.)
  *
  * Numbering (see CLAUDE.md): MAJOR.MINOR.PATCH. Major = the repo format or the way you work changes,
  * minor = a new feature, patch = fixes and polish. Notes are written for the people using Sprawniej.

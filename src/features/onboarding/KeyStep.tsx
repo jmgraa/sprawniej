@@ -113,6 +113,7 @@ export function KeyStep({ onDone, intro }: { onDone: (token: string, me: Person)
         <div className="flex gap-2">
           <Input
             id="github-key"
+            type="password"
             value={key}
             autoComplete="off"
             spellCheck={false}

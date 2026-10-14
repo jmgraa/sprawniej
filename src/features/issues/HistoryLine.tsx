@@ -20,7 +20,6 @@ function useText(change: Change, by: string): ReactNode {
   const issues = useData((s) => s.issues)
   const person = (l: string | null) => (l ? (people[l]?.name ?? l) : '')
   const project = (id: string | null) => (id && projects[id] ? `${projects[id].emoji} ${projects[id].name}` : 'a project')
-  const label = (id: string) => labels[id]?.name ?? 'a removed label'
   const issue = (id: string | null) => (id && issues[id] ? issueRef(issues[id]) : 'another issue')
   switch (change.kind) {
     case 'status':
@@ -42,12 +41,23 @@ function useText(change: Change, by: string): ReactNode {
       if (!change.to) return <>unassigned <B>{person(change.from)}</B></>
       return change.to === by ? 'assigned it to themselves' : <>assigned it to <B>{person(change.to)}</B></>
     case 'labels': {
-      const added = change.added.map(label)
-      const removed = change.removed.map(label)
       const word = (n: number) => (n === 1 ? 'label' : 'labels')
-      if (added.length && removed.length) return <>added <B>{list(added)}</B> and removed <B>{list(removed)}</B></>
-      if (added.length) return <>added the <B>{list(added)}</B> {word(added.length)}</>
-      return <>removed the <B>{list(removed)}</B> {word(removed.length)}</>
+      // "the Bug and Design labels", and labels deleted since then said as such
+      const these = (ids: string[]) => {
+        const named = ids.flatMap((id) => (labels[id] ? [labels[id].name] : []))
+        const gone = ids.length - named.length
+        const goneText = gone === 1 ? 'a label deleted since' : `${gone} labels deleted since`
+        if (!named.length) return goneText
+        return (
+          <>
+            the <B>{list(named)}</B> {word(named.length)}
+            {gone > 0 && <> and {goneText}</>}
+          </>
+        )
+      }
+      if (change.added.length && change.removed.length) return <>added {these(change.added)} and removed {these(change.removed)}</>
+      if (change.added.length) return <>added {these(change.added)}</>
+      return <>removed {these(change.removed)}</>
     }
     case 'project':
       return change.to ? <>moved it to <B>{project(change.to)}</B></> : <>took it out of <B>{project(change.from)}</B></>

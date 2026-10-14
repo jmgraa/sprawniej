@@ -527,8 +527,11 @@ export function createLabel(name: string): Label {
 }
 
 export function updateLabel(id: string, patch: Partial<Pick<Label, 'name' | 'color'>>) {
-  const label = useData.getState().labels[id]
+  const labels = useData.getState().labels
+  const label = labels[id]
   if (!label) return
+  // two labels with one name can't be told apart in pickers and filters
+  if (patch.name !== undefined && Object.values(labels).some((l) => l.id !== id && l.name.toLowerCase() === patch.name!.trim().toLowerCase())) return
   save(one(paths.label(id), jsonToFile({ ...label, ...patch })), `Edit label ${patch.name ?? label.name}`)
 }
 
@@ -652,7 +655,7 @@ export function createTeam(input: { key: string; name: string; emoji: string }):
 export function setAutoArchive(key: string, months: number) {
   const team = useData.getState().teams[key]
   if (!team || (team.autoArchive ?? AUTO_ARCHIVE_MONTHS) === months) return
-  save(one(paths.team(key), jsonToFile({ ...team, autoArchive: months })), months ? `${team.name}: archive finished issues after ${months} months` : `${team.name}: never archive finished issues`)
+  save(one(paths.team(key), jsonToFile({ ...team, autoArchive: months })), months ? `${team.name}: archive finished issues after ${months} ${months === 1 ? 'month' : 'months'}` : `${team.name}: never archive finished issues`)
 }
 
 /** a team's name or emoji; its key stays (issue numbers like ENG-12 are made from it) */

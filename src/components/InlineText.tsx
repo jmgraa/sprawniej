@@ -18,12 +18,14 @@ interface Props {
   lines?: 'one' | 'wrap' | 'many'
   /** an empty value isn't allowed (a name): leaving it empty puts the old one back */
   required?: boolean
+  /** a value that isn't allowed (a name taken by something else) isn't saved, and leaving puts the old one back */
+  allowed?: (text: string) => boolean
   autoFocus?: boolean
   /** after you leave the field (renaming in a list goes back to showing the name) */
   onDone?: () => void
 }
 
-export function InlineText({ value, onSave, placeholder, label, className, lines = 'one', required, autoFocus, onDone }: Props) {
+export function InlineText({ value, onSave, placeholder, label, className, lines = 'one', required, allowed, autoFocus, onDone }: Props) {
   const multiline = lines === 'many'
   const [text, setText] = useState(value)
   const [focused, setFocused] = useState(false)
@@ -39,6 +41,7 @@ export function InlineText({ value, onSave, placeholder, label, className, lines
     clearTimeout(timer.current)
     const next = multiline ? latest.current.trimEnd() : latest.current.trim()
     if (required && !next) return
+    if (allowed && !allowed(next)) return
     if (next !== value) onSave(next)
   }
   const saveRef = useRef(save)
@@ -57,7 +60,7 @@ export function InlineText({ value, onSave, placeholder, label, className, lines
   function blur() {
     setFocused(false)
     save()
-    if (required && !latest.current.trim()) {
+    if ((required && !latest.current.trim()) || (allowed && !allowed(latest.current.trim()))) {
       latest.current = value
       setText(value)
     }

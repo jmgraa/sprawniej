@@ -24,7 +24,7 @@ export function Welcome() {
         </Button>
       }
     >
-      <p>Plan and track your team's work: issues, projects and views, on a list or a board. Everything is kept in a GitHub repository your team owns.</p>
+      <p>Plan and track your team's work: issues, projects and views, on a list or a board. Everything is kept on GitHub, in a place your team owns.</p>
       <p className="mt-3 text-muted-foreground">
         <b className="text-foreground">Got a join link from a teammate?</b> Open that link instead; it takes you straight to your team.
       </p>
