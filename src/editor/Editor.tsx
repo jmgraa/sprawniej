@@ -22,6 +22,7 @@ import { MentionSuggest } from './MentionSuggest'
 import { References } from './references'
 import { LANGUAGES } from './languages'
 import { tidyMarkdown } from './tidy'
+import { mergeText } from '@/sync/merge'
 
 const lowlight = createLowlight(LANGUAGES)
 
@@ -153,12 +154,29 @@ export function Editor({ value, onChange, placeholder = 'Add a description…', 
   // leaving the page while a save is waiting: send it now
   useEffect(() => () => flush(), [editor]) // oxlint-disable-line react-hooks/exhaustive-deps
 
-  // someone else changed it (or another field did): show the new text unless you're typing here
+  // someone else changed it: show the new text. If you're writing here, their change is merged into yours line by
+  // line (yours wins where you both changed the same lines), so saving your text never undoes theirs.
   useEffect(() => {
-    if (!editor || editor.isDestroyed || value === lastSent.current || editor.isFocused) return
+    if (!editor || editor.isDestroyed || value === lastSent.current) return
+    const base = lastSent.current
     lastSent.current = value
-    editor.commands.setContent(value, { contentType: 'markdown', emitUpdate: false })
-  }, [value, editor])
+    if (!editor.isFocused) {
+      editor.commands.setContent(value, { contentType: 'markdown', emitUpdate: false })
+      return
+    }
+    const mine = tidyMarkdown(editor.getMarkdown())
+    const merged = mine === base ? value : mergeText(base, mine, value)
+    if (merged === mine) return
+    const { from, to } = editor.state.selection
+    editor.commands.setContent(merged, { contentType: 'markdown', emitUpdate: false })
+    const end = editor.state.doc.content.size
+    editor.commands.setTextSelection({ from: Math.min(from, end), to: Math.min(to, end) })
+    // what you added is still to be saved: `lastSent` is their text, the editor has both
+    if (merged !== value) {
+      clearTimeout(timer.current)
+      timer.current = setTimeout(flush, SAVE_AFTER)
+    }
+  }, [value, editor]) // oxlint-disable-line react-hooks/exhaustive-deps
 
   return <EditorContent editor={editor} className={cn('min-h-24 cursor-text', className)} />
 }

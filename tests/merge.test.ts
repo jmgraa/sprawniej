@@ -87,6 +87,14 @@ describe('renumbering', () => {
     expect(r[0]).toMatchObject({ team: 'ENG', from: 13, to: 14 })
     expect(read(r[0].text).number).toBe(14)
   })
+  test('only the clashing issue moves; our next one keeps its number', () => {
+    const remote = at(5, 'remote')
+    const five = at(5, 'mine5', '2026-10-07T01:00:00.000Z')
+    const six = at(6, 'mine6', '2026-10-07T02:00:00.000Z')
+    const pending = new Map<string, string | null>([[paths.issue(five), file(five)], [paths.issue(six), file(six)]])
+    const r = renumber(new Map([[paths.issue(remote), file(remote)]]), pending)
+    expect(r.map((x) => [x.from, x.to])).toEqual([[5, 7]])
+  })
   test('no clash, no change', () => {
     const remote = at(13, 'remote')
     const mine = at(14, 'mine')
@@ -171,5 +179,24 @@ describe('tidy Markdown', () => {
   })
   test('blank lines at the start and end go', () => {
     expect(tidyMarkdown('\n\n  \nHello\n\n')).toBe('Hello')
+  })
+})
+
+describe('edit beats delete, comments included', () => {
+  const comment = { id: 'c1', issue: base.id, author: 'ana', createdAt: '2026-10-07T00:00:00.000Z', body: 'keep me' }
+  const cPath = paths.comment(base.team, comment)
+  const start = new Map([[path, file(base)], [cPath, commentToFile(comment)]])
+  const edited = file({ ...base, title: 'Edited' })
+  test('they deleted it, we edited it: the issue and its comment stay', () => {
+    const r = mergeIncoming(start, new Map([[path, edited]]), new Map<string, string | null>([[path, null], [cPath, null]]))
+    expect(r.shown.get(path)).toBe(edited)
+    expect(r.pending.get(cPath)).toBe(commentToFile(comment))
+    expect(r.shown.get(cPath)).toBe(commentToFile(comment))
+  })
+  test('we deleted it, they edited it: our delete of the comment is dropped too', () => {
+    const r = mergeIncoming(start, new Map<string, string | null>([[path, null], [cPath, null]]), new Map([[path, edited]]))
+    expect(r.shown.get(path)).toBe(edited)
+    expect(r.pending.has(cPath) && r.pending.get(cPath)).toBe(undefined)
+    expect(r.shown.get(cPath)).toBe(commentToFile(comment))
   })
 })

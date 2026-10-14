@@ -28,20 +28,25 @@ interface Props {
 export function InlineText({ value, onSave, placeholder, label, className, lines = 'one', required, allowed, autoFocus, onDone }: Props) {
   const multiline = lines === 'many'
   const [text, setText] = useState(value)
-  const [focused, setFocused] = useState(false)
+  /** you typed something that isn't saved yet: a teammate's change waits until it is */
+  const [typing, setTyping] = useState(false)
   const [seen, setSeen] = useState(value)
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
-  const latest = useRef(value)
-  if (value !== seen && !focused) {
+  /** what you typed and haven't saved; null = nothing (then leaving the field never saves an old text over a new one) */
+  const typed = useRef<string | null>(null)
+  if (value !== seen && !typing) {
     setSeen(value)
     setText(value)
   }
 
   const save = () => {
     clearTimeout(timer.current)
-    const next = multiline ? latest.current.trimEnd() : latest.current.trim()
+    if (typed.current === null) return
+    const next = multiline ? typed.current.trimEnd() : typed.current.trim()
     if (required && !next) return
     if (allowed && !allowed(next)) return
+    typed.current = null
+    setTyping(false)
     if (next !== value) onSave(next)
   }
   const saveRef = useRef(save)
@@ -50,28 +55,31 @@ export function InlineText({ value, onSave, placeholder, label, className, lines
   })
   useEffect(() => () => saveRef.current(), [])
 
+  const putBack = () => {
+    clearTimeout(timer.current)
+    typed.current = null
+    setTyping(false)
+    setText(value)
+  }
+
   function change(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) {
     const next = multiline ? e.target.value : e.target.value.replace(/\n/g, ' ')
     setText(next)
-    latest.current = next
+    setTyping(true)
+    typed.current = next
     clearTimeout(timer.current)
-    timer.current = setTimeout(save, SAVE_AFTER)
+    timer.current = setTimeout(() => saveRef.current(), SAVE_AFTER)
   }
   function blur() {
-    setFocused(false)
     save()
-    if ((required && !latest.current.trim()) || (allowed && !allowed(latest.current.trim()))) {
-      latest.current = value
-      setText(value)
-    }
+    // still not saved: empty where a name is needed, or not allowed
+    if (typed.current !== null) putBack()
     onDone?.()
     setSeen(value)
   }
   function key(e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) {
     if (e.key === 'Escape') {
-      clearTimeout(timer.current)
-      latest.current = value
-      setText(value)
+      putBack()
       e.currentTarget.blur()
     } else if (e.key === 'Enter' && (!multiline || e.metaKey || e.ctrlKey)) {
       e.preventDefault()
@@ -80,14 +88,13 @@ export function InlineText({ value, onSave, placeholder, label, className, lines
   }
   const look = cn('w-full resize-none bg-transparent outline-none placeholder:text-muted-foreground/70', className)
   return lines === 'one' ? (
-    <input value={text} placeholder={placeholder} aria-label={label} onChange={change} onFocus={(e) => (setFocused(true), autoFocus && e.target.select())} onBlur={blur} onKeyDown={key} className={look} autoFocus={autoFocus} />
+    <input value={text} placeholder={placeholder} aria-label={label} onChange={change} onFocus={(e) => autoFocus && e.target.select()} onBlur={blur} onKeyDown={key} className={look} autoFocus={autoFocus} />
   ) : (
     <textarea
       value={text}
       placeholder={placeholder}
       aria-label={label}
       onChange={change}
-      onFocus={() => setFocused(true)}
       onBlur={blur}
       onKeyDown={key}
       rows={1}

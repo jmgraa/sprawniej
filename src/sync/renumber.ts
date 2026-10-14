@@ -55,13 +55,17 @@ export function renumber(base: Map<string, string>, pending: Map<string, string 
   // oldest first keeps its number when two of ours clash with each other
   fresh.sort((a, b) => String(a.parsed.fields.createdAt).localeCompare(String(b.parsed.fields.createdAt)))
 
-  const out: Renumbered[] = []
+  // first every new issue whose number is still free keeps it; only then do the clashing ones move up, past all of
+  // them (else moving WEB-5 up to WEB-6 would push our own WEB-6 along too, for no reason)
+  const clashing: typeof fresh = []
   for (const f of fresh) {
     const taken = used.get(f.team) ?? new Set<number>()
-    if (!taken.has(f.parsed.number)) {
-      take(f.team, f.parsed.number)
-      continue
-    }
+    if (taken.has(f.parsed.number)) clashing.push(f)
+    else take(f.team, f.parsed.number)
+  }
+  const out: Renumbered[] = []
+  for (const f of clashing) {
+    const taken = used.get(f.team) ?? new Set<number>()
     const next = Math.max(floor.get(f.team) ?? 0, ...taken) + 1
     take(f.team, next)
     out.push({ path: f.path, team: f.team, from: f.parsed.number, to: next, text: joinFrontMatter({ ...f.parsed.fields, number: next }, f.parsed.body) })

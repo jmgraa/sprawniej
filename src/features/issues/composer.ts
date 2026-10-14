@@ -2,6 +2,7 @@
 import { create } from 'zustand'
 import type { NewIssue } from '@/data/actions'
 import { findByRef, useData } from '@/data/store'
+import { workspace } from '@/sync/engine'
 
 interface Composer {
   open: boolean
@@ -27,4 +28,6 @@ export function openComposer(defaults: Partial<NewIssue> = {}) {
   // on a team's Backlog tab a new issue starts in Backlog, so it shows up right where you are
   const onBacklog = /^#\/team\/[^/]+\/issues\/backlog/.test(location.hash)
   useComposer.setState({ open: true, defaults: { team: currentTeam(), ...(onBacklog && { status: 'backlog' as const }), ...defaults } })
+  // bring in issues teammates just made, so the new one's number is free (fewer "WEB-5 is now WEB-6" moments)
+  void workspace()?.syncNow()
 }

@@ -517,16 +517,29 @@ export class Workspace {
     this.etag = head.etag
 
     // two new issues with the same number: ours (not on GitHub yet) moves up
-    for (const r of renumber(this.base, this.pending)) {
+    const moved = renumber(this.base, this.pending)
+    for (const r of moved) {
       this.pending.set(r.path, r.text)
       void this.local.putPending(r.path, r.text)
       shown.set(r.path, r.text)
       toast(`${r.team}-${r.from} is now ${r.team}-${r.to}`, { description: 'A teammate created an issue with the same number at the same time.' })
     }
+    if (moved.length) {
+      // the waiting save's description says the new numbers (all at once: WEB-5 → 7 mustn't then become 8)
+      const to = new Map(moved.map((r) => [`${r.team}-${r.from}`, `${r.team}-${r.to}`]))
+      const ref = new RegExp(`\\b(${[...to.keys()].join('|')})\\b`, 'g')
+      this.messages = this.messages.map((m) => m.replace(ref, (x) => to.get(x)!))
+      void this.local.setMessages(this.messages)
+    }
 
     // show the merged result before anything else can run, so your next edit starts from it
     applyFiles(shown, this.me.login)
     this.tabs.post({ t: 'files', files: [...shown] })
+    // you were looking at your issue under its old number, which is now the teammate's: follow yours
+    for (const r of moved) {
+      const old = new RegExp(`^#/issue/${r.team}-${r.from}(?=$|[/?])`, 'i')
+      if (old.test(location.hash)) location.replace(location.hash.replace(old, `#/issue/${r.team}-${r.to}`))
+    }
     await this.local.putBase(baseUpdate)
     await this.local.setMeta(this.meta)
     // the same lines rewritten by both: ours is kept, theirs stays in the history. Nobody is asked to choose.
