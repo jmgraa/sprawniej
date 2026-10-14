@@ -78,7 +78,7 @@ test('deleting a label, project or team takes it out of saved views', () => {
   deleteLabel(label.id)
   deleteProject(project.id)
   deleteTeam('DES')
-  expect(state().views[view.id].filters).toEqual({ labels: [keep.id], teams: ['ENG'] })
+  expect(state().views[view.id].filters).toEqual({ labels: [keep.id], projects: [project.id], teams: ['ENG'] })
 })
 
 test('an issue moved to another team still answers to its old number', () => {

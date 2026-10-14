@@ -564,16 +564,19 @@ export function deleteLabel(id: string) {
   save(files, `Delete label ${label.name}`)
 }
 
-/** a label, project or team that's gone comes out of every saved view's filters (else the view shows its id) */
+/**
+ * A label, project or team that's gone comes out of saved views' filters where others are left ("Bug or Design"
+ * becomes "Design"). Where it was the only one, it stays: the view keeps showing nothing rather than suddenly showing
+ * every issue, and its filter says the one it was about was deleted.
+ */
 function dropFromViews(files: Map<string, string | null>, field: 'labels' | 'projects' | 'teams', id: string) {
   for (const v of Object.values(useData.getState().views)) {
     if (files.has(paths.view(v.id))) continue // being deleted already
     const list = v.filters[field] as (string | null)[] | undefined
     if (!list?.includes(id)) continue
     const rest = list.filter((x) => x !== id)
-    const filters = { ...v.filters, [field]: rest }
-    if (!rest.length) delete filters[field]
-    files.set(paths.view(v.id), jsonToFile({ ...v, filters }))
+    if (!rest.length) continue
+    files.set(paths.view(v.id), jsonToFile({ ...v, filters: { ...v.filters, [field]: rest } }))
   }
 }
 
