@@ -4,6 +4,7 @@
  */
 import { useState } from 'react'
 import { signOutEverywhere } from '@/app/signOut'
+import { nameFromRepo } from '@/features/onboarding/repoNames'
 import { useSession } from '@/session'
 import { workspace } from '@/sync/engine'
 import { unsavedElsewhere } from '@/sync/local'
@@ -39,7 +40,7 @@ export function useSignOut(then?: string) {
         <DialogDescription>
           {unsaved === 'here' || !unsaved
             ? 'You seem to be offline. If you sign out now, those changes are lost. Connect to the internet and wait for "Saved" first.'
-            : `You changed ${unsaved.length === 1 ? 'another workspace' : 'other workspaces'} (${unsaved.join(', ')}) and those changes haven't reached GitHub. If you sign out now, they are lost. Open ${unsaved.length === 1 ? 'it' : 'each one'} while online and wait for "Saved" first.`}
+            : `You changed ${elsewhereText(unsaved)} and those changes haven't reached GitHub. If you sign out now, they are lost. Open ${unsaved.length === 1 ? 'it' : 'each one'} while online and wait for "Saved" first.`}
         </DialogDescription>
         <DialogFooter>
           <Button variant="outline" onClick={() => setUnsaved(null)}>
@@ -54,4 +55,12 @@ export function useSignOut(then?: string) {
   )
 
   return { signOut: () => void signOut(), busy, dialog }
+}
+
+/** "another workspace (Acme)", or "the Acme workspace" when none is open now */
+function elsewhereText(repos: string[]): string {
+  const names = repos.map((r) => nameFromRepo(r.split('/').pop() ?? r)).join(', ')
+  const open = !!useSession.getState().workspace
+  if (repos.length === 1) return open ? `another workspace (${names})` : `the ${names} workspace`
+  return open ? `other workspaces (${names})` : `the workspaces ${names}`
 }
