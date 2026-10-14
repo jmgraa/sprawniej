@@ -4,6 +4,7 @@
  * shows up as soon as you're not typing in it.
  */
 import { useEffect, useRef, useState } from 'react'
+import { onBeforeHide } from '@/lib/beforeHide'
 import { cn } from '@/lib/utils'
 
 const SAVE_AFTER = 500
@@ -54,6 +55,8 @@ export function InlineText({ value, onSave, placeholder, label, className, lines
     saveRef.current = save
   })
   useEffect(() => () => saveRef.current(), [])
+  // closing the tab right after typing: hand it over now, not in half a second
+  useEffect(() => onBeforeHide(() => saveRef.current()), [])
 
   const putBack = () => {
     clearTimeout(timer.current)

@@ -98,6 +98,8 @@ export const issueFieldsSchema = z
     subscribers: z.array(login).optional(),
     /** people who asked not to follow it */
     unsubscribed: z.array(login).optional(),
+    /** the numbers it had before it moved to another team ("WEB-2"), so old links and mentions still find it */
+    formerRefs: z.array(z.string()).optional(),
   })
   .passthrough()
 export type IssueFields = z.infer<typeof issueFieldsSchema>

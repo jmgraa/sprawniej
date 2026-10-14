@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
-import { archiveIssues, createComment, createIssue, createLabel, createProject, createView, deleteLabel, deleteProject, deleteTeam, joinTeam, leaveTeam, updateIssue, updateTeam } from '@/data/actions'
+import { archiveIssues, createComment, createIssue, createLabel, createProject, createView, deleteLabel, deleteProject, deleteTeam, joinTeam, leaveTeam, moveIssueToTeam, updateIssue, updateTeam } from '@/data/actions'
 import { issueToFile, jsonToFile, paths } from '@/data/files'
 import { applyFiles, archiveFiles, parsedFiles, resetProjection } from '@/data/project'
-import { EMPTY, useData } from '@/data/store'
+import { EMPTY, findByRef, useData } from '@/data/store'
 import { DEFAULT_DISPLAY } from '@/data/displays'
 import type { Person, Team } from '@/model/schema'
 
@@ -79,4 +79,12 @@ test('deleting a label, project or team takes it out of saved views', () => {
   deleteProject(project.id)
   deleteTeam('DES')
   expect(state().views[view.id].filters).toEqual({ labels: [keep.id], teams: ['ENG'] })
+})
+
+test('an issue moved to another team still answers to its old number', () => {
+  const issue = createIssue({ team: 'ENG', title: 'Wanders off' })
+  const moved = moveIssueToTeam(issue.id, 'DES')!
+  expect(moved.formerRefs).toEqual([`ENG-${issue.number}`])
+  expect(findByRef(state().issues, `ENG-${issue.number}`)?.id).toBe(issue.id)
+  expect(findByRef(state().issues, `DES-${moved.number}`)?.id).toBe(issue.id)
 })

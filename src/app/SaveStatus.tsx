@@ -18,7 +18,7 @@ export function SaveStatus() {
       label: 'Offline',
       tip: pending ? 'You’re offline. Your changes are safe on this device and will be saved when you’re back online.' : 'You’re offline. Changes you make are kept on this device.',
     },
-    error: { icon: <CloudAlert className="size-4 text-urgent" />, label: 'Not saved yet', tip: `Your changes are safe on this device. We’ll keep trying. (${detail ?? 'unknown problem'})` },
+    error: { icon: <CloudAlert className="size-4 text-urgent" />, label: 'Not saved yet', tip: `Your changes are safe on this device. We’ll keep trying.${detail ? ` ${detail}` : ''}` },
     'bad-key': { icon: <KeyRound className="size-4 text-urgent" />, label: 'Key expired', tip: 'Your GitHub key stopped working. Make a new one to keep saving.' },
   }[state]
   return (

@@ -26,6 +26,7 @@ import {
   isOffline,
   moveBranch,
   NotFastForward,
+  plainError,
   type Author,
   type FileVersion,
   type RepoRef,
@@ -382,6 +383,8 @@ export class Workspace {
       this.lastSync = Date.now()
       try {
         if (!navigator.onLine) throw new TypeError('offline')
+        // back online (or trying again) with changes waiting: say so while they go
+        if (this.pending.size && useSync.getState().state !== 'saving') useSync.setState({ state: 'saving', detail: undefined })
         await this.pull()
         await this.save()
         this.retryDelay = 5_000
@@ -400,7 +403,14 @@ export class Workspace {
     }
     if (isOffline(e)) {
       useSync.setState({ state: 'offline', pending: this.pending.size, detail: undefined })
-      return // the 'online' event wakes us up
+      // the 'online' event wakes us up; a request that failed while the browser thinks it's online (a hiccup) won't
+      // get one, so changes still waiting are tried again on their own, even in a hidden tab
+      if (navigator.onLine && this.pending.size) {
+        clearTimeout(this.retryTimer)
+        this.retryTimer = setTimeout(() => void this.syncNow(), this.retryDelay)
+        this.retryDelay = Math.min(this.retryDelay * 2, 120_000)
+      }
+      return
     }
     if (e instanceof GitHubError && e.retryAt) {
       // not a failure: GitHub wants fewer saves for a while. Changes are safe here; we save again after the wait.
@@ -412,7 +422,9 @@ export class Workspace {
       return
     }
     console.error('Sprawniej sync', e)
-    useSync.setState({ state: 'error', pending: this.pending.size, detail: (e as Error).message })
+    // why, in a few words (the chip already says we keep trying)
+    const why = e instanceof GitHubError && e.status >= 500 ? 'GitHub is having trouble right now.' : plainError(e).replace(/ Try again.*$/, '')
+    useSync.setState({ state: 'error', pending: this.pending.size, detail: why })
     this.retryTimer = setTimeout(() => void this.syncNow(), this.retryDelay)
     this.retryDelay = Math.min(this.retryDelay * 2, 120_000)
   }

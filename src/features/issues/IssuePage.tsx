@@ -57,6 +57,11 @@ export function IssuePage() {
     if (!issue && !archiveLoaded) loadArchive()
   }, [issue, archiveLoaded])
   const shown = issue ?? archived
+  // opened by an old number (it moved to another team since): show its current one in the address
+  const current = shown ? issueRef(shown) : undefined
+  useEffect(() => {
+    if (current && current.toUpperCase() !== decodeURIComponent(ref).toUpperCase()) navigate(`/issue/${current}`, { replace: true })
+  }, [current, ref, navigate])
   const team = useData((s) => (shown ? s.teams[shown.team] : undefined))
   const teams = useData(useShallow((s) => Object.values(s.teams)))
   const people = useData((s) => s.people)

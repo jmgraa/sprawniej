@@ -266,7 +266,7 @@ export function moveIssueToTeam(id: string, team: string): Issue | undefined {
   const old = s.issues[id]
   if (!old || old.team === team || !s.teams[team]) return old
   const number = nextNumber(team)
-  const next: Issue = { ...old, team, number, updatedAt: now() }
+  const next: Issue = { ...old, team, number, formerRefs: [...(old.formerRefs ?? []), issueRef(old)], updatedAt: now() }
   const files = new Map<string, string | null>([
     [pathOf((p) => p.kind === 'issue' && p.value.id === id) ?? paths.issue(old), null],
     [paths.issue(next), issueToFile(next)],

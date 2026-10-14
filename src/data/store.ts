@@ -51,7 +51,9 @@ export function findByRef(issues: Record<string, Issue>, ref: string): Issue | u
   const m = /^([A-Z][A-Z0-9]*)-(\d+)$/.exec(ref.toUpperCase())
   if (!m) return undefined
   const n = Number(m[2])
-  return Object.values(issues).find((i) => i.team === m[1] && i.number === n)
+  const all = Object.values(issues)
+  // an issue that moved to another team answers to its old number too (numbers are never given out twice)
+  return all.find((i) => i.team === m[1] && i.number === n) ?? all.find((i) => i.formerRefs?.includes(`${m[1]}-${n}`))
 }
 
 /** an archived issue by its "ENG-12" reference (only once the archive is loaded); an active one with the same id wins */

@@ -22,6 +22,7 @@ import { MentionSuggest } from './MentionSuggest'
 import { References } from './references'
 import { LANGUAGES } from './languages'
 import { tidyMarkdown } from './tidy'
+import { onBeforeHide } from '@/lib/beforeHide'
 import { mergeText } from '@/sync/merge'
 
 const lowlight = createLowlight(LANGUAGES)
@@ -153,6 +154,8 @@ export function Editor({ value, onChange, placeholder = 'Add a description…', 
 
   // leaving the page while a save is waiting: send it now
   useEffect(() => () => flush(), [editor]) // oxlint-disable-line react-hooks/exhaustive-deps
+  // closing or hiding the tab right after typing: the same
+  useEffect(() => onBeforeHide(() => flush()), [editor]) // oxlint-disable-line react-hooks/exhaustive-deps
 
   // someone else changed it: show the new text. If you're writing here, their change is merged into yours line by
   // line (yours wins where you both changed the same lines), so saving your text never undoes theirs.
