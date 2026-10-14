@@ -83,7 +83,7 @@ export function Editor({ value, onChange, placeholder = 'Add a description…', 
     autofocus: autoFocus ? 'end' : false,
     editorProps: {
       attributes: { class: 'prose-sprawniej tiptap-editor outline-none', 'aria-label': label, role: 'textbox', 'aria-multiline': 'true' },
-      handlePaste: (_view, event) => addPictures(event.clipboardData?.files),
+      handlePaste: (_view, event) => addPictures(event.clipboardData?.files) || pasteMarkdown(event),
       handleDrop: (view, event, _slice, moved) => {
         if (moved) return false
         const at = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos
@@ -104,6 +104,25 @@ export function Editor({ value, onChange, placeholder = 'Add a description…', 
     },
     onBlur: () => flush(),
   })
+
+  // the paste handler is set up once; it finds the editor here
+  const editorRef = useRef(editor)
+  useEffect(() => {
+    editorRef.current = editor
+  }, [editor])
+
+  /**
+   * Plain text that's written in Markdown (from a README, a note, a chat) comes in formatted, the way it will look
+   * once saved. Text copied from a web page (it brings its own formatting) and text pasted into code is left alone.
+   */
+  function pasteMarkdown(event: ClipboardEvent): boolean {
+    const editor = editorRef.current
+    const data = event.clipboardData
+    if (!editor || !data || data.types.includes('text/html') || editor.isActive('codeBlock')) return false
+    const text = data.getData('text/plain')
+    if (!looksLikeMarkdown(text)) return false
+    return editor.commands.insertContent(text, { contentType: 'markdown' })
+  }
 
   /** pasted or dropped pictures: kept in the workspace, then shown where they landed */
   function addPictures(files: FileList | undefined, at?: number): boolean {
@@ -143,3 +162,6 @@ export function Editor({ value, onChange, placeholder = 'Add a description…', 
 
   return <EditorContent editor={editor} className={cn('min-h-24 cursor-text', className)} />
 }
+
+/** headings, lists, checklists, quotes, code fences, bold or links at the start of a line or inline */
+const looksLikeMarkdown = (text: string) => /^(#{1,6} |[-*+] |\d+\. |> |```|[-*] \[[ xX]\] )/m.test(text) || /\*\*[^*\n]+\*\*|\[[^\]\n]+\]\([^)\s]+\)/.test(text)

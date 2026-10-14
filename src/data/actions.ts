@@ -97,6 +97,9 @@ function describe(issue: Issue, patch: IssuePatch): string {
 export function updateIssue(id: string, patch: IssuePatch): void {
   const old = useData.getState().issues[id]
   if (!old) return
+  // picking what it already is (Todo on a Todo issue) changes nothing, so nothing is saved
+  const same = (k: keyof IssuePatch) => JSON.stringify(patch[k] ?? null) === JSON.stringify(old[k as keyof Issue] ?? null)
+  if ((Object.keys(patch) as (keyof IssuePatch)[]).every(same)) return
   const next: Issue = { ...old, ...patch, updatedAt: now() }
   if (patch.status && patch.status !== old.status) {
     next.completedAt = statusOf(patch.status).group === 'completed' ? now() : null

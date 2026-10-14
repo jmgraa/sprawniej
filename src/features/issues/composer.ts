@@ -24,5 +24,7 @@ export function currentTeam(): string | undefined {
 }
 
 export function openComposer(defaults: Partial<NewIssue> = {}) {
-  useComposer.setState({ open: true, defaults: { team: currentTeam(), ...defaults } })
+  // on a team's Backlog tab a new issue starts in Backlog, so it shows up right where you are
+  const onBacklog = /^#\/team\/[^/]+\/issues\/backlog/.test(location.hash)
+  useComposer.setState({ open: true, defaults: { team: currentTeam(), ...(onBacklog && { status: 'backlog' as const }), ...defaults } })
 }

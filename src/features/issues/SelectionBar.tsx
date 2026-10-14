@@ -49,14 +49,14 @@ export function SelectionBar() {
       <ConfirmDialog
         open={confirm}
         onOpenChange={setConfirm}
-        title={`Delete ${ids.length} issues?`}
+        title={ids.length === 1 ? 'Delete 1 issue?' : `Delete ${ids.length} issues?`}
         confirm="Delete"
         onConfirm={() => {
           for (const id of ids) deleteIssue(id)
           clearSelection()
         }}
       >
-        They and their comments will be removed for everyone. Their sub-issues stay.
+        {ids.length === 1 ? 'It and its comments will be removed for everyone. Its sub-issues stay.' : 'They and their comments will be removed for everyone. Their sub-issues stay.'}
       </ConfirmDialog>
     </div>
   )
