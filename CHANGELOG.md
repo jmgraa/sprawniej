@@ -3,6 +3,12 @@
 Versions are `MAJOR.MINOR.PATCH`: major = the repo format or the way you work changes, minor = a new feature,
 patch = fixes and polish. Written from `src/version.ts` by `bun scripts/changelog.ts`.
 
+## 1.8.2: Shorter people lists
+*2026-10-15*
+
+- Settings › People shows the first few people of each list, with Show all for the rest
+- Search people finds anyone by name or username, even with a typo or without Polish letters
+
 ## 1.8.1: Your name, your way
 *2026-10-15*
 

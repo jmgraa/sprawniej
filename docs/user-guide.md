@@ -28,7 +28,9 @@ puts the GitHub one back.
 
 Open the menu under your name (bottom left) and choose **Settings and people**. Type their GitHub username and press
 **Invite**. A join link made just for them appears below: copy it and send it to them. Their link is also next to
-their name in the list until they join. (Only the workspace's admins can invite.) No GitHub account yet? Ask them to
+their name in the list until they join. A long list shows its first few people; **Show all** opens the rest, and
+**Search people** finds anyone by name or username, even with a typo or without Polish letters. (Only the
+workspace's admins can invite.) No GitHub account yet? Ask them to
 make one first (it's free), then invite them.
 
 If you moved over from Linear and some people there haven't joined yet, Sprawniej asks right after the invite
