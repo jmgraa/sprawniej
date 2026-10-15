@@ -8,7 +8,7 @@ import { useCrumbs } from '@/app/chrome'
 import { switchWorkspace } from '@/app/signOut'
 import { useSignOut } from '@/components/SignOut'
 import { PersonAvatar } from '@/components/Avatar'
-import { renameWorkspace, setAutoArchive } from '@/data/actions'
+import { renameMe, renameWorkspace, setAutoArchive } from '@/data/actions'
 import { AUTO_ARCHIVE_MONTHS, isGuest, type Person } from '@/model/schema'
 import { useData } from '@/data/store'
 import { inviteMessage, joinLink } from '@/features/onboarding/joinLink'
@@ -239,18 +239,47 @@ function JoinLinkFor({ login, link, wsName }: { login: string; link: string | nu
   )
 }
 
+/** your name as teammates see it; GitHub's until you type your own */
+function MyName({ me, github }: { me: Person; github: string }) {
+  const [draft, setDraft] = useState(me.name)
+  const commit = () => {
+    renameMe(draft)
+    if (!draft.trim()) setDraft(github)
+  }
+  return (
+    <div className="min-w-0 flex-1">
+      <Input
+        aria-label="Your name"
+        className="h-10 max-w-sm font-semibold"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+      />
+      <p className="mt-1.5 text-sm text-muted-foreground">
+        @{me.login} · How teammates see you here. Your GitHub profile stays as it is.
+        {me.nameSetHere && github !== me.login && github !== me.name && (
+          <Button variant="link" className="h-auto px-1 py-0 text-sm" onClick={() => renameMe('')}>
+            Use your GitHub name ({github})
+          </Button>
+        )}
+      </p>
+    </div>
+  )
+}
+
 function Account() {
   const user = useSession((s) => s.user)
+  const mine = useData((s) => (user ? s.people[user.login] : undefined))
   const { signOut, busy, dialog } = useSignOut()
+  const me = mine ?? user
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex items-center gap-4">
-        <PersonAvatar person={user ?? undefined} className="size-12 text-base" />
-        <div>
-          <div className="font-semibold">{user?.name}</div>
-          <div className="text-muted-foreground">@{user?.login}</div>
-        </div>
+      <div className="flex items-start gap-4">
+        <PersonAvatar person={me ?? undefined} className="size-12 text-base" />
+        {/* remount when the name changes elsewhere (another tab, "Use your GitHub name") */}
+        {me && <MyName key={me.name} me={me} github={user?.name ?? me.login} />}
       </div>
       <div className="flex flex-wrap gap-2">
         <Button variant="outline" size="lg" onClick={() => void switchWorkspace()}>

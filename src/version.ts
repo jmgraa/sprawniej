@@ -5,7 +5,7 @@
  * Numbering (see CLAUDE.md): MAJOR.MINOR.PATCH. Major = the repo format or the way you work changes,
  * minor = a new feature, patch = fixes and polish. Notes are written for the people using Sprawniej.
  */
-export const APP_VERSION = '1.8.0'
+export const APP_VERSION = '1.8.1'
 
 export interface Release {
   version: string
@@ -18,6 +18,15 @@ export interface Release {
 }
 
 export const CHANGELOG: Release[] = [
+  {
+    version: '1.8.1',
+    date: '2026-10-15',
+    title: 'Your name, your way',
+    notes: [
+      'Change the name teammates see in Settings › Your account. Your GitHub profile stays as it is, and Use your GitHub name puts it back',
+      'People linked from Linear keep their name when they join, if their GitHub profile has none',
+    ],
+  },
   {
     version: '1.8.0',
     date: '2026-10-15',

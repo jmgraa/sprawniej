@@ -18,6 +18,12 @@ You only do this once per browser. The join link also accepts the GitHub invitat
 The first time you open your team's issues, four short tips show you around. You can see them again from the
 **Help** page (**Show the tour again**).
 
+### Your name
+
+Teammates see the name from your GitHub profile. To go by another one here, open **Settings and people** and
+type it under **Your account**; it saves by itself. Your GitHub profile stays as it is. **Use your GitHub name**
+puts the GitHub one back.
+
 ### Inviting someone
 
 Open the menu under your name (bottom left) and choose **Settings and people**. Type their GitHub username and press

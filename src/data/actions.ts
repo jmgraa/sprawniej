@@ -775,12 +775,29 @@ export function suggestKey(name: string): string {
 
 // ---------- people and the workspace ----------
 
-/** Make sure your people/ file matches your GitHub profile (name and picture change over time). */
+/**
+ * Make sure your people/ file matches your GitHub profile (name and picture change over time). A name you typed here
+ * stays, and so does one your file already has when GitHub has none (someone from Linear linked to you).
+ */
 export function introduceMe(me: Person) {
   const s = useData.getState()
   const mine = s.people[me.login]
-  if (mine && mine.name === me.name && mine.avatarUrl === me.avatarUrl && mine.githubId === me.githubId) return
-  save(one(paths.person(me.login), jsonToFile({ ...mine, ...me })), mine ? `Update ${me.name || me.login}'s profile` : `${me.name || me.login} joins the workspace`)
+  const keepName = !!mine?.name && (mine.nameSetHere || (me.name === me.login && mine.name !== me.login))
+  const next = { ...mine, ...me, name: keepName ? mine!.name : me.name }
+  if (mine && mine.name === next.name && mine.avatarUrl === me.avatarUrl && mine.githubId === me.githubId) return
+  save(one(paths.person(me.login), jsonToFile(next)), mine ? `Update ${next.name || me.login}'s profile` : `${next.name || me.login} joins the workspace`)
+}
+
+/** Your name as teammates see it here. Empty, or the same as on GitHub: back to your GitHub name. */
+export function renameMe(name: string) {
+  const s = useData.getState()
+  if (!s.me) return
+  const mine = s.people[s.me.login] ?? s.me
+  const typed = name.trim().replace(/\s+/g, ' ')
+  const { nameSetHere: _was, ...rest } = mine
+  const next: Person = !typed || typed === s.me.name ? { ...rest, name: s.me.name } : { ...rest, name: typed, nameSetHere: true }
+  if (next.name === mine.name && !!next.nameSetHere === !!mine.nameSetHere) return
+  save(one(paths.person(s.me.login), jsonToFile(next)), `${mine.name} is now called ${next.name}`)
 }
 
 /**

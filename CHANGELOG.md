@@ -3,6 +3,12 @@
 Versions are `MAJOR.MINOR.PATCH`: major = the repo format or the way you work changes, minor = a new feature,
 patch = fixes and polish. Written from `src/version.ts` by `bun scripts/changelog.ts`.
 
+## 1.8.1: Your name, your way
+*2026-10-15*
+
+- Change the name teammates see in Settings › Your account. Your GitHub profile stays as it is, and Use your GitHub name puts it back
+- People linked from Linear keep their name when they join, if their GitHub profile has none
+
 ## 1.8.0: Link people from Linear
 *2026-10-15*
 
