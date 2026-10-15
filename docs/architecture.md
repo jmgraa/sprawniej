@@ -57,6 +57,13 @@ The link opens a wizard with one step per screen:
 Join links use the app's public address: `VITE_PUBLIC_URL` at build time, or else the address the app is served
 from (`src/config.ts`). On localhost there is no link to share, so Settings says so after an invite instead of showing one.
 
+**People from Linear.** Someone the Linear import brought who hadn't joined is `~name` (docs/data-format.md). An
+admin links them to a GitHub account right after inviting it, or later from Settings (`LinkPersonDialog.tsx`).
+`relinkFiles` (src/data/relink.ts) works out every file that changes: issues (live and archived), comments, project
+leads, views, the teams their issues are in, the account's `people/` file (made from GitHub's profile if they haven't
+opened the workspace, with `linearIds` so later imports match them) and the `~` file (removed). It all goes out as
+one save. The Linear import uses the same helpers when it matches someone who hadn't joined.
+
 A short tour follows the first visit. The owner's own setup (creating the workspace repo) is a separate, guided path.
 
 ### Workspace repositories

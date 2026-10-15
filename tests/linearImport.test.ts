@@ -31,6 +31,11 @@ describe('matching people', () => {
     // Linear sometimes only knows an e-mail address as the name
     const mail = guestLogins([{ ...data.users[3], id: 'u-mail', name: 'jan.kowalski@acme.dev', displayName: 'jan' }], {})
     expect(mail.get('u-mail')).toBe('~jan')
+    expect(guestLogins([{ ...data.users[3], id: 'u-l', name: 'Łukasz Bąk' }], {}).get('u-l')).toBe('~lukasz-bak')
+  })
+  test('someone linked to an account before is matched to it, whatever their name', () => {
+    const linked = { ...person('dk', 'Somebody Else'), linearIds: ['u-old'] }
+    expect(guessPerson(data.users.find((u) => u.id === 'u-old')!, [...people, linked])).toBe('dk')
   })
 })
 
@@ -199,6 +204,21 @@ describe('building the import', () => {
     expect(w2.issues['local-1']?.assignee).toBe('cwong')
     expect(w2.views?.vh).toMatchObject({ owner: 'cwong', filters: { assignees: ['cwong'] } })
     expect(Object.values(w2.views ?? {}).find((v) => v.name === 'Cat')?.filters).toEqual({ subscribers: ['cwong'] })
+    // their account remembers the Linear id, so the next import matches them by itself
+    expect(JSON.parse(after.files.get('people/cwong.json')!)).toMatchObject({ login: 'cwong', name: 'Cat Wong', linearIds: ['u-cat'] })
+  })
+
+  test('a later import that matches someone moves their archived issues and the projects they lead too', () => {
+    const guests = { ...choices, people: { ...choices.people, 'u-cat': '~cat-wong' } }
+    const first = buildImport(data, guests, empty(), ids(), '2026-03-01T00:00:00.000Z')
+    const w = read(first.files)
+    const people = Object.fromEntries([...first.files].filter(([p]) => p.startsWith('people/')).map(([, t]) => JSON.parse(t!)).map((p) => [p.login, p]))
+    const old = { id: 'arch-1', team: 'ENG', number: 70, title: 'Archived here', description: '', status: 'done', priority: 0, assignee: '~cat-wong', labels: [], project: null, parent: null, sortOrder: 'a0', createdBy: 'mikolaj', createdAt: 'x', updatedAt: '2026-01-05T00:00:00.000Z', completedAt: '2026-01-05T00:00:00.000Z', archivedAt: 'y', archivedBy: 'mikolaj', comments: [{ id: 'k', issue: 'arch-1', author: '~cat-wong', createdAt: 'x', body: 'hm' }] } as ArchivedIssue
+    const lead = { id: 'pl', name: 'Made here', emoji: '📦', description: '', status: 'planned', lead: '~cat-wong', teams: [], targetDate: null, createdAt: 'x' } as Project
+    const after = buildImport(data, { ...guests, people: { ...guests.people, 'u-cat': 'cwong' } }, { ...w, me: 'mikolaj', people, archive: { [old.id]: old }, projects: { ...w.projects, pl: lead } }, ids(), '2026-03-02T00:00:00.000Z')
+    const month = after.files.get('teams/ENG/archive/2026-01.jsonl')!
+    expect(JSON.parse(month)).toMatchObject({ assignee: 'cwong', comments: [{ author: 'cwong' }] })
+    expect(JSON.parse(after.files.get('projects/pl.json')!).lead).toBe('cwong')
   })
 
   test('a person matched to no one: their view is left out', () => {

@@ -7,6 +7,7 @@
  */
 import { generateNKeysBetween } from 'fractional-indexing'
 import { archiveMonth, archiveToFile, commentToFile, issueToFile, jsonToFile, paths } from '@/data/files'
+import { linearIdsOf, linkedPerson, plainName as plain, relinkArchived, relinkIssue, relinkProject, relinkView } from '@/data/relink'
 import { STATUSES, type Priority, type StatusId } from '@/model/status'
 import { AUTO_ARCHIVE_MONTHS, isGuest, type ArchivedIssue, type Comment, type Issue, type Label, type Person, type Project, type Team, type View } from '@/model/schema'
 import { SUBSCRIBERS_READ, type LIssue, type LinearData, type LLabel, type LTeam, type LUser } from './linearApi'
@@ -14,16 +15,10 @@ import { mapViewFilter, type FilterContext } from './linearFilters'
 
 // ---------- people ----------
 
-const plain = (s: string) =>
-  s
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/ł/g, 'l')
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, '')
-
-/** a Linear person's best guess among the workspace's people: same name, or a login that looks like theirs */
+/** a Linear person's best guess among the workspace's people: linked to them before, same name, or a login like theirs */
 export function guessPerson(u: LUser, people: Person[]): string | null {
+  const linked = people.find((p) => linearIdsOf(p).includes(u.id))
+  if (linked) return linked.login
   const names = [u.name, u.displayName].filter(Boolean).map(plain)
   const local = u.email ? plain(u.email.split('@')[0]) : ''
   const hit =
@@ -77,8 +72,8 @@ export function guestLogins(users: LUser[], people: Record<string, Person>): Map
       linearName(u)
         .normalize('NFD')
         .replace(/[̀-ͯ]/g, '')
-        .replace(/ł/g, 'l')
         .toLowerCase()
+        .replace(/ł/g, 'l')
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-|-$/g, '')
         .slice(0, 30) || 'someone'
@@ -240,6 +235,8 @@ export function buildImport(data: LinearData, choices: ImportChoices, ws: Existi
     if (!isGuest(p.login) || !match || isGuest(match)) continue
     relinked.set(p.login, match)
     files.set(paths.person(p.login), null)
+    // their account remembers the Linear id, so the next import matches them by itself
+    files.set(paths.person(match), jsonToFile(linkedPerson(people[match], people[match] ?? { login: match, githubId: 0, name: match, avatarUrl: '' }, p)))
   }
   const relink = (l: string) => relinked.get(l) ?? l
 
@@ -318,7 +315,11 @@ export function buildImport(data: LinearData, choices: ImportChoices, ws: Existi
   // issues: keep numbers unless the team here already used one for something else
   const issuesByLinear = byLinearId(Object.values(ws.issues))
   // issues archived here since an earlier import stay as they are
-  const archived = Object.values(ws.archive ?? {}).filter((a) => !ws.issues[a.id])
+  const archived = Object.values(ws.archive ?? {})
+    .filter((a) => !ws.issues[a.id])
+    .map((a) => (relinked.size ? relinkArchived(a, relink) : a))
+  /** archived records that pointed at someone who has joined since: their month files are written again */
+  const relinkedArchive = new Set(relinked.size ? archived.filter((a) => JSON.stringify(a) !== JSON.stringify(ws.archive![a.id])).map((a) => a.id) : [])
   const archivedByLinear = byLinearId(archived)
   const order = orderKeys(issues)
   const idOf = new Map(issues.map((i) => [i.id, issuesByLinear.get(i.id)?.id ?? archivedByLinear.get(i.id)?.id ?? newId()]))
@@ -469,14 +470,12 @@ export function buildImport(data: LinearData, choices: ImportChoices, ws: Existi
     const imported = new Set([...pathOfIssue.values()].map((i) => i.id))
     for (const i of Object.values(ws.issues)) {
       if (imported.has(i.id)) continue
-      const next = {
-        ...i,
-        assignee: i.assignee && relink(i.assignee),
-        createdBy: relink(i.createdBy),
-        ...(i.subscribers && { subscribers: i.subscribers.map(relink) }),
-        ...(i.unsubscribed && { unsubscribed: i.unsubscribed.map(relink) }),
-      }
+      const next = relinkIssue(i, relink)
       if (JSON.stringify(next) !== JSON.stringify(i)) files.set(paths.issue(next), issueToFile(next))
+    }
+    const importedProjects = new Set(projectId.values())
+    for (const p of Object.values(ws.projects)) {
+      if (!importedProjects.has(p.id) && p.lead && relinked.has(p.lead)) files.set(paths.project(p.id), jsonToFile(relinkProject(p, relink)))
     }
   }
 
@@ -488,8 +487,9 @@ export function buildImport(data: LinearData, choices: ImportChoices, ws: Existi
   }
   toArchive.forEach(into)
   archivedWithNew.forEach(into)
+  for (const a of archived) if (!archivedWithNew.has(a.id) && relinkedArchive.has(a.id)) into(a)
   const touched = new Set(byFile.keys())
-  for (const a of archived) if (!archivedWithNew.has(a.id) && touched.has(paths.archive(a.team, archiveMonth(a, a.archivedAt)))) into(a)
+  for (const a of archived) if (!archivedWithNew.has(a.id) && !relinkedArchive.has(a.id) && touched.has(paths.archive(a.team, archiveMonth(a, a.archivedAt)))) into(a)
   for (const [path, records] of byFile) files.set(path, archiveToFile(records))
 
   // views: the chosen teams' and the whole workspace's, with the filters that can come over
@@ -514,16 +514,7 @@ export function buildImport(data: LinearData, choices: ImportChoices, ws: Existi
     for (const v of Object.values(ws.views ?? {})) {
       const id = linearIdOf(v)
       if (id && fromLinear.has(id)) continue
-      const f = v.filters
-      const next: View = {
-        ...v,
-        owner: relink(v.owner),
-        filters: {
-          ...f,
-          ...(f.assignees && { assignees: f.assignees.map((l) => l && relink(l)) }),
-          ...(f.subscribers && { subscribers: f.subscribers.map(relink) }),
-        },
-      }
+      const next = relinkView(v, relink)
       if (JSON.stringify(next) !== JSON.stringify(v)) files.set(paths.view(v.id), jsonToFile(next))
     }
   }

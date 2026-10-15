@@ -243,7 +243,7 @@ export function ImportPage() {
       >
         <p className="text-muted-foreground">
           We matched people by name. Fix anyone we got wrong. Someone who isn't here yet still comes over with their name, so their issues, comments
-          and views stay theirs. Invite them later and import again: everything moves to their account.
+          and views stay theirs. Once you invite them, link them in Settings and everything moves to their account.
         </p>
         <ul className="mt-5 flex flex-col divide-y rounded-lg border">
           {users.map((u) => (

@@ -9,7 +9,7 @@
 import { generateKeyBetween } from 'fractional-indexing'
 import { ulid } from 'ulid'
 import type { ArchivedIssue, Comment, Display, Filters, InboxItem, Issue, Label, Person, Project, ReadState, Team, View } from '@/model/schema'
-import { AUTO_ARCHIVE_MONTHS, FORMAT_VERSION } from '@/model/schema'
+import { AUTO_ARCHIVE_MONTHS, FORMAT_VERSION, isGuest } from '@/model/schema'
 import { PRIORITY_NAMES, statusOf } from '@/model/status'
 import { BINARY_PREFIX } from '@/github/api'
 import { workspace } from '@/sync/engine'
@@ -17,6 +17,7 @@ import { archiveMonth, archiveToFile, commentToFile as commentFile, issueToFile,
 import { commentNotes, followLists, followers, issueNotes, type Note } from './notify'
 import { changedOnly, keyBetween, keysBetween } from './ordering'
 import { applyFiles, archiveFiles, highestArchived, parsedFiles, pathOf } from './project'
+import { relinkFiles } from './relink'
 import { isClosed, isUnread } from './select'
 import { issueRef, useData } from './store'
 
@@ -780,6 +781,17 @@ export function introduceMe(me: Person) {
   const mine = s.people[me.login]
   if (mine && mine.name === me.name && mine.avatarUrl === me.avatarUrl && mine.githubId === me.githubId) return
   save(one(paths.person(me.login), jsonToFile({ ...mine, ...me })), mine ? `Update ${me.name || me.login}'s profile` : `${me.name || me.login} joins the workspace`)
+}
+
+/**
+ * Someone from the Linear import who hadn't joined is this GitHub person: their issues, comments, projects and views
+ * become theirs, and their "hasn't joined" profile goes (see relink.ts). `to` is what GitHub says about the account;
+ * their own people/ file, if they have one, wins.
+ */
+export function linkPerson(guest: string, to: Person) {
+  const g = useData.getState().people[guest]
+  if (!g || !isGuest(guest) || isGuest(to.login)) return
+  save(relinkFiles(g, to), `Link ${g.name} to @${to.login}`)
 }
 
 /** A brand-new workspace: its file, you, and a first team. */

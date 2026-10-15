@@ -45,9 +45,16 @@ second import updates them instead of making copies (docs/linear-import.md).
 { "login": "mikolajpochec", "githubId": 123456, "name": "Mikołaj Pocheć", "avatarUrl": "https://avatars.githubusercontent.com/u/123456" }
 ```
 
+Usually written by that person when they first open the workspace. Linking someone from Linear to an account
+(below) can write it before they do, from their GitHub profile; their own profile replaces the name and picture
+when they open the workspace, and keeps the rest.
+
+`linearIds` (optional): the Linear people this account was linked to, so a later import matches them by itself.
+
 Someone the Linear import brought who isn't in the workspace yet has a login starting with `~`, which no GitHub
-login can, and `githubId: 0`. Issues, comments and views can point at them; they get no inbox notes. A later import
-that matches them to a GitHub person rewrites what pointed at them and removes the file.
+login can, `githubId: 0` and their Linear id (`linearId`). Issues, comments and views can point at them; they get no
+inbox notes. Linking them to a GitHub account (in Settings, or by a later import that matches them) rewrites what
+pointed at them, adds the account to the teams their issues are in, and removes the file.
 
 ```json
 { "login": "~jan-kowalski", "githubId": 0, "name": "Jan Kowalski", "avatarUrl": "", "linearId": "…" }

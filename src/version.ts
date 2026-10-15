@@ -5,7 +5,7 @@
  * Numbering (see CLAUDE.md): MAJOR.MINOR.PATCH. Major = the repo format or the way you work changes,
  * minor = a new feature, patch = fixes and polish. Notes are written for the people using Sprawniej.
  */
-export const APP_VERSION = '1.7.0'
+export const APP_VERSION = '1.8.0'
 
 export interface Release {
   version: string
@@ -18,6 +18,16 @@ export interface Release {
 }
 
 export const CHANGELOG: Release[] = [
+  {
+    version: '1.8.0',
+    date: '2026-10-15',
+    title: 'Link people from Linear',
+    notes: [
+      'Right after you invite someone, Sprawniej asks whether they’re one of the people from Linear who haven’t joined. Link them, and their issues, comments and views become theirs at once',
+      'Settings › People lists everyone from Linear who isn’t linked yet, with Link to GitHub account next to each (for admins)',
+      'People you link stay linked when you import from Linear again, even if their names differ',
+    ],
+  },
   {
     version: '1.7.0',
     date: '2026-10-15',

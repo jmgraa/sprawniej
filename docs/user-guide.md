@@ -25,6 +25,10 @@ Open the menu under your name (bottom left) and choose **Settings and people**. 
 their name in the list until they join. (Only the workspace's admins can invite.) No GitHub account yet? Ask them to
 make one first (it's free), then invite them.
 
+If you moved over from Linear and some people there haven't joined yet, Sprawniej asks right after the invite
+whether this is one of them. Pick who they were in Linear and press **Link**: their issues, comments and views
+become theirs at once, even before they join. Not sure? Press **Skip**; you can link them later.
+
 ## Your work saves by itself
 
 There is no Save button. Whatever you type or change is kept right away. In the top bar you'll see:
@@ -239,8 +243,10 @@ finished long ago go straight to the archive. Views keep the filters that fit, a
 lost some, so you can check them.
 
 People who aren't in Sprawniej yet come over too, marked "hasn't joined": their issues, comments and views stay
-theirs. Invite them, then run the import again, and everything moves to their account. You can run it again later to bring in new
-changes; nothing is copied twice.
+theirs. To give them their work, link them to their GitHub account: right after you invite them, or later in
+**Settings › People › People from Linear** (**Link to GitHub account**, admins only). Everything that was theirs
+moves to their account. Linking can't be undone, so check the name first. You can run the import again later to
+bring in new changes; nothing is copied twice, and people you linked stay linked.
 
 ## Handy keys
 

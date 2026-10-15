@@ -3,6 +3,13 @@
 Versions are `MAJOR.MINOR.PATCH`: major = the repo format or the way you work changes, minor = a new feature,
 patch = fixes and polish. Written from `src/version.ts` by `bun scripts/changelog.ts`.
 
+## 1.8.0: Link people from Linear
+*2026-10-15*
+
+- Right after you invite someone, Sprawniej asks whether they’re one of the people from Linear who haven’t joined. Link them, and their issues, comments and views become theirs at once
+- Settings › People lists everyone from Linear who isn’t linked yet, with Link to GitHub account next to each (for admins)
+- People you link stay linked when you import from Linear again, even if their names differ
+
 ## 1.7.0: Update when it suits you
 *2026-10-15*
 
