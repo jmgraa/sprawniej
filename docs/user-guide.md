@@ -28,7 +28,7 @@ puts the GitHub one back.
 
 Open the menu under your name (bottom left) and choose **Settings and people**. Type their GitHub username and press
 **Invite**. A join link made just for them appears below: copy it and send it to them. Their link is also next to
-their name in the list until they join. A long list shows its first few people; **Show all** opens the rest, and
+their name in the list until they join. A long list comes in pages of 10 (**Previous** and **Next** below it), and
 **Search people** finds anyone by name or username, even with a typo or without Polish letters. (Only the
 workspace's admins can invite.) No GitHub account yet? Ask them to
 make one first (it's free), then invite them.
@@ -227,7 +227,7 @@ Add issues to a project from the project's page, or pick the project on any issu
 
 Labels like "Bug" or "Design" sort issues across teams. Make one right from an issue (type a new name in the
 labels menu), or in **Settings › Labels**, where you can also rename, recolour and delete them. Changes apply to
-every issue that has the label.
+every issue that has the label. Many labels come in pages of 10, with **Search labels** above them.
 
 ## Inbox
 

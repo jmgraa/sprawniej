@@ -5,7 +5,7 @@
  * Numbering (see CLAUDE.md): MAJOR.MINOR.PATCH. Major = the repo format or the way you work changes,
  * minor = a new feature, patch = fixes and polish. Notes are written for the people using Sprawniej.
  */
-export const APP_VERSION = '1.8.2'
+export const APP_VERSION = '1.8.3'
 
 export interface Release {
   version: string
@@ -18,6 +18,16 @@ export interface Release {
 }
 
 export const CHANGELOG: Release[] = [
+  {
+    version: '1.8.3',
+    date: '2026-10-15',
+    title: 'Pages for long lists',
+    notes: [
+      'People and labels in Settings come in pages of 10, with Previous and Next',
+      'Search labels finds a label by name, and a label you add shows on its page',
+      'Renaming a label keeps it in place while you type, even if its new name sorts elsewhere',
+    ],
+  },
   {
     version: '1.8.2',
     date: '2026-10-15',

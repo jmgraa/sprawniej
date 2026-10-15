@@ -3,6 +3,13 @@
 Versions are `MAJOR.MINOR.PATCH`: major = the repo format or the way you work changes, minor = a new feature,
 patch = fixes and polish. Written from `src/version.ts` by `bun scripts/changelog.ts`.
 
+## 1.8.3: Pages for long lists
+*2026-10-15*
+
+- People and labels in Settings come in pages of 10, with Previous and Next
+- Search labels finds a label by name, and a label you add shows on its page
+- Renaming a label keeps it in place while you type, even if its new name sorts elsewhere
+
 ## 1.8.2: Shorter people lists
 *2026-10-15*
 
