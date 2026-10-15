@@ -1,6 +1,6 @@
 /** Settings: the workspace's name, the people in it (and inviting more), labels, and your account. */
 import { useEffect, useState, type ReactNode } from 'react'
-import { Copy, ExternalLink, Link2, Loader2, LogOut, Repeat, UserPlus } from 'lucide-react'
+import { Copy, ExternalLink, Link2, Loader2, LogOut, Repeat, Search, UserPlus } from 'lucide-react'
 import { toast } from 'sonner'
 import { Link } from 'wouter'
 import { useShallow } from 'zustand/react/shallow'
@@ -8,6 +8,8 @@ import { useCrumbs } from '@/app/chrome'
 import { switchWorkspace } from '@/app/signOut'
 import { useSignOut } from '@/components/SignOut'
 import { PersonAvatar } from '@/components/Avatar'
+import { ShortList } from '@/components/ShortList'
+import { fuzzy } from '@/lib/fuzzy'
 import { renameMe, renameWorkspace, setAutoArchive } from '@/data/actions'
 import { AUTO_ARCHIVE_MONTHS, isGuest, type Person } from '@/model/schema'
 import { useData } from '@/data/store'
@@ -74,6 +76,7 @@ function People() {
   /** the link dialog: just invited (a GitHub login) or a person from Linear */
   const [linking, setLinking] = useState<{ login: string } | { guest: Person }>()
   const unlinked = useUnlinked()
+  const [query, setQuery] = useState('')
   const work = useData(useShallow((s) => Object.fromEntries(unlinked.map((g) => [g.login, workOf(s, g.login)]))))
 
   useEffect(() => {
@@ -121,40 +124,37 @@ function People() {
   const invitedLogins = sent.map((i) => i.invitee?.login).filter((l): l is string => !!l)
   // an admin links people from Linear below; an invited person who was linked already shows once, as invited
   const listed = people.filter((p) => !invitedLogins.includes(p.login) && !(admin && isGuest(p.login)))
+  type Row = { person: Person; invite?: undefined } | { person?: Person; invite: SentInvitation }
+  const rows: Row[] = [...listed.map((p) => ({ person: p })), ...sent.map((i) => ({ invite: i, person: people.find((p) => p.login === i.invitee?.login) }))]
+  const searching = !!query.trim()
+  const rowWords = (r: Row) => [r.person?.name ?? '', r.person?.login ?? r.invite?.invitee?.login ?? '']
+  const shown = fuzzy(rows, query, rowWords)
+  const shownUnlinked = admin ? fuzzy(unlinked, query, (g) => [g.name]) : []
   return (
     <div className="flex flex-col gap-8">
-      <ul className="flex flex-col gap-1">
-        {listed.map((p) => (
-          <li key={p.login} className="flex items-center gap-3 py-1.5">
-            <PersonAvatar person={p} className="size-8 text-xs" />
-            <span className="font-medium">{p.name}</span>
-            {isGuest(p.login) ? (
-              <span className="rounded-full border px-2 text-xs leading-5 text-muted-foreground" title="Their issues and comments came with the import. An admin can link them to their GitHub account.">
-                From Linear, hasn't joined
-              </span>
-            ) : (
-              <span className="text-muted-foreground">@{p.login}</span>
-            )}
-          </li>
-        ))}
-        {sent.map((i) => {
-          const link = i.invitee && linkFor(i.invitee.login)
-          const known = people.find((p) => p.login === i.invitee?.login)
-          return (
-            <li key={i.id} className="flex items-center gap-3 py-1.5 text-muted-foreground">
-              <PersonAvatar person={known} login={i.invitee?.login ?? '?'} className="size-8 text-xs opacity-60" />
-              {known && known.name !== known.login && <span className="font-medium text-foreground/80">{known.name}</span>}
-              <span>@{i.invitee?.login}</span>
-              <span className="rounded-full border px-2 text-xs leading-5">Invited, hasn't joined yet</span>
-              {link && (
-                <Button variant="ghost" size="sm" onClick={() => copy(link, 'Link')}>
-                  <Copy /> Copy their join link
-                </Button>
-              )}
-            </li>
-          )
-        })}
-      </ul>
+      {rows.length + (admin ? unlinked.length : 0) > 8 && (
+        <div className="relative max-w-sm">
+          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            className="h-10 pl-9"
+            placeholder="Search people…"
+            aria-label="Search people"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => e.key === 'Escape' && setQuery('')}
+          />
+        </div>
+      )}
+      {searching && !shown.length && !shownUnlinked.length && <p className="text-muted-foreground">Nobody here matches “{query.trim()}”.</p>}
+      {shown.length > 0 && (
+        <ShortList
+          items={shown}
+          all={searching}
+          noun="people"
+          className="flex flex-col gap-1"
+          row={(r) => (r.invite ? <InviteRow key={r.invite.id} invite={r.invite} known={r.person} link={r.invite.invitee && linkFor(r.invite.invitee.login)} /> : <PersonRow key={r.person.login} person={r.person} />)}
+        />
+      )}
 
       {admin ? (
         <div>
@@ -181,14 +181,18 @@ function People() {
         <p className="text-sm text-muted-foreground">Only the workspace's admins can invite people. Ask one of them; they'll get a join link to send.</p>
       )}
 
-      {admin && unlinked.length > 0 && (
+      {admin && shownUnlinked.length > 0 && (
         <div>
           <h3 className="mb-1 font-medium">People from Linear</h3>
           <p className="mb-3 text-sm text-muted-foreground">
             They came with the Linear import and aren't linked to a GitHub account yet. Link each one, and their issues, comments and views become theirs.
           </p>
-          <ul className="flex flex-col gap-1">
-            {unlinked.map((g) => (
+          <ShortList
+            items={shownUnlinked}
+            all={searching}
+            noun="people from Linear"
+            className="flex flex-col gap-1"
+            row={(g) => (
               <li key={g.login} className="flex items-center gap-3 py-1.5">
                 <PersonAvatar person={g} className="size-8 text-xs" />
                 <span className="min-w-0 flex-1">
@@ -199,8 +203,8 @@ function People() {
                   <Link2 /> Link to GitHub account
                 </Button>
               </li>
-            ))}
-          </ul>
+            )}
+          />
         </div>
       )}
 
@@ -211,6 +215,39 @@ function People() {
           <LinkPersonDialog from="linear" guest={linking.guest} invited={invitedLogins} onClose={() => setLinking(undefined)} />
         ))}
     </div>
+  )
+}
+
+function PersonRow({ person: p }: { person: Person }) {
+  return (
+    <li className="flex items-center gap-3 py-1.5">
+      <PersonAvatar person={p} className="size-8 text-xs" />
+      <span className="font-medium">{p.name}</span>
+      {isGuest(p.login) ? (
+        <span className="rounded-full border px-2 text-xs leading-5 text-muted-foreground" title="Their issues and comments came with the import. An admin can link them to their GitHub account.">
+          From Linear, hasn't joined
+        </span>
+      ) : (
+        <span className="text-muted-foreground">@{p.login}</span>
+      )}
+    </li>
+  )
+}
+
+/** someone invited who hasn't joined yet (with their name, when someone from Linear was linked to them) */
+function InviteRow({ invite, known, link }: { invite: SentInvitation; known?: Person; link: string | null | undefined }) {
+  return (
+    <li className="flex items-center gap-3 py-1.5 text-muted-foreground">
+      <PersonAvatar person={known} login={invite.invitee?.login ?? '?'} className="size-8 text-xs opacity-60" />
+      {known && known.name !== known.login && <span className="font-medium text-foreground/80">{known.name}</span>}
+      <span>@{invite.invitee?.login}</span>
+      <span className="rounded-full border px-2 text-xs leading-5">Invited, hasn't joined yet</span>
+      {link && (
+        <Button variant="ghost" size="sm" onClick={() => copy(link, 'Link')}>
+          <Copy /> Copy their join link
+        </Button>
+      )}
+    </li>
   )
 }
 
