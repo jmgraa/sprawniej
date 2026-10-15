@@ -8,7 +8,7 @@ import { useCrumbs } from '@/app/chrome'
 import { switchWorkspace } from '@/app/signOut'
 import { useSignOut } from '@/components/SignOut'
 import { PersonAvatar } from '@/components/Avatar'
-import { ShortList } from '@/components/ShortList'
+import { PagedList } from '@/components/PagedList'
 import { fuzzy } from '@/lib/fuzzy'
 import { renameMe, renameWorkspace, setAutoArchive } from '@/data/actions'
 import { AUTO_ARCHIVE_MONTHS, isGuest, type Person } from '@/model/schema'
@@ -132,7 +132,7 @@ function People() {
   const shownUnlinked = admin ? fuzzy(unlinked, query, (g) => [g.name]) : []
   return (
     <div className="flex flex-col gap-8">
-      {rows.length + (admin ? unlinked.length : 0) > 8 && (
+      {rows.length + (admin ? unlinked.length : 0) > 10 && (
         <div className="relative max-w-sm">
           <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -147,9 +147,9 @@ function People() {
       )}
       {searching && !shown.length && !shownUnlinked.length && <p className="text-muted-foreground">Nobody here matches “{query.trim()}”.</p>}
       {shown.length > 0 && (
-        <ShortList
+        <PagedList
+          key={query.trim()}
           items={shown}
-          all={searching}
           noun="people"
           className="flex flex-col gap-1"
           row={(r) => (r.invite ? <InviteRow key={r.invite.id} invite={r.invite} known={r.person} link={r.invite.invitee && linkFor(r.invite.invitee.login)} /> : <PersonRow key={r.person.login} person={r.person} />)}
@@ -187,9 +187,9 @@ function People() {
           <p className="mb-3 text-sm text-muted-foreground">
             They came with the Linear import and aren't linked to a GitHub account yet. Link each one, and their issues, comments and views become theirs.
           </p>
-          <ShortList
+          <PagedList
+            key={query.trim()}
             items={shownUnlinked}
-            all={searching}
             noun="people from Linear"
             className="flex flex-col gap-1"
             row={(g) => (
