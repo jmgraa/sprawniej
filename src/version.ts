@@ -5,7 +5,7 @@
  * Numbering (see CLAUDE.md): MAJOR.MINOR.PATCH. Major = the repo format or the way you work changes,
  * minor = a new feature, patch = fixes and polish. Notes are written for the people using Sprawniej.
  */
-export const APP_VERSION = '1.8.3'
+export const APP_VERSION = '1.8.4'
 
 export interface Release {
   version: string
@@ -18,6 +18,14 @@ export interface Release {
 }
 
 export const CHANGELOG: Release[] = [
+  {
+    version: '1.8.4',
+    date: '2026-10-15',
+    title: 'Search without Polish letters',
+    notes: [
+      'Every search finds Polish names and titles without typing ą, ę, ł or ż: “lukasz” finds Łukasz, “zazolc” finds “Zażółć”. This covers the assignee and label menus, @mentions, ⌘K and the archive',
+    ],
+  },
   {
     version: '1.8.3',
     date: '2026-10-15',

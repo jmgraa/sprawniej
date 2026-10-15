@@ -3,6 +3,7 @@
  * everything that pointed at them moves over. Used by Settings › People ("Link to GitHub account", or right after an
  * invite) and by the Linear import when it matches them. Pure, so it's tested (tests/relink.test.ts).
  */
+import { plain } from '@/lib/plain'
 import { archiveFiles, parsedFiles } from './project'
 import { commentToFile, issueToFile, jsonToFile, classify, paths, type Parsed } from './files'
 import type { ArchivedIssue, Comment, Issue, Person, Project, View } from '@/model/schema'
@@ -11,13 +12,7 @@ import type { ArchivedIssue, Comment, Issue, Person, Project, View } from '@/mod
 export type Relink = (login: string) => string
 
 /** a name made comparable: no accents, no case, letters and digits only ("Łukasz B." → "lukaszb") */
-export const plainName = (s: string) =>
-  s
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .replace(/ł/g, 'l')
-    .replace(/[^a-z0-9]/g, '')
+export const plainName = (s: string) => plain(s).replace(/[^a-z0-9]/g, '')
 
 /** probably the same person: the same name, or a login that is their name */
 export function sameName(name: string, other: { login: string; name?: string | null }): boolean {

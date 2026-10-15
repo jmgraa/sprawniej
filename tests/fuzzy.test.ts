@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { fuzzy } from '@/lib/fuzzy'
+import { fuzzy, plainFilter } from '@/lib/fuzzy'
 
 const people = [
   { name: 'Anna Kowalska', login: 'ania-k' },
@@ -24,4 +24,11 @@ test('accents don’t matter, either way round', () => {
   expect(fuzzy(pl, 'lukasz bak', words)[0].login).toBe('lb')
   expect(fuzzy(pl, 'wisniewska', words)[0].login).toBe('zw')
   expect(fuzzy([{ name: 'Lukasz', login: 'l' }], 'Łukasz', words)).toHaveLength(1)
+})
+
+test('menus match without accents too', () => {
+  expect(plainFilter('Łukasz Bąk lb', 'lukasz')).toBeGreaterThan(0)
+  expect(plainFilter('Zosia', 'zosia', ['Wiśniewska'])).toBeGreaterThan(0)
+  expect(plainFilter('Anna', 'wisniewska', ['Wiśniewska'])).toBeGreaterThan(0)
+  expect(plainFilter('Anna', 'zzz')).toBe(0)
 })

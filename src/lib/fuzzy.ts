@@ -1,12 +1,8 @@
 import { defaultFilter } from 'cmdk'
+import { plain } from './plain'
 
-/** letters without their accents, so "lukasz" finds Łukasz and "wisniewska" finds Wiśniewska */
-const plain = (s: string) =>
-  s
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/ł/g, 'l')
+/** cmdk's matching (for `<Command filter>`), without accents: "lukasz" finds Łukasz in any menu */
+export const plainFilter = (value: string, search: string, keywords?: string[]) => defaultFilter(plain(value), plain(search), keywords?.map(plain))
 
 /**
  * The items a typed search matches, loosely ("drk smi" finds Darek Smith), best match first; all of them, in their own
@@ -16,7 +12,7 @@ export function fuzzy<T>(items: T[], query: string, words: (item: T) => string[]
   const q = plain(query.trim())
   if (!q) return items
   return items
-    .map((item, n) => ({ item, n, score: defaultFilter(plain(words(item).join(' ')), q) }))
+    .map((item, n) => ({ item, n, score: plainFilter(words(item).join(' '), q) }))
     .filter((x) => x.score > 0)
     .sort((a, b) => b.score - a.score || a.n - b.n)
     .map((x) => x.item)

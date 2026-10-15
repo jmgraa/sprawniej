@@ -256,6 +256,8 @@ theirs. To give them their work, link them to their GitHub account: right after 
 moves to their account. Linking can't be undone, so check the name first. You can run the import again later to
 bring in new changes; nothing is copied twice, and people you linked stay linked.
 
+Searching anywhere (menus, @mentions, ⌘K, the archive) doesn't need Polish letters: "lukasz" finds Łukasz.
+
 ## Handy keys
 
 | Key | Does |

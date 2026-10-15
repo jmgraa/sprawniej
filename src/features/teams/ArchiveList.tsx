@@ -11,6 +11,7 @@ import { loadArchive } from '@/data/project'
 import { issueRef, useData } from '@/data/store'
 import { shortDate } from '@/features/issues/format'
 import { StatusIcon } from '@/features/issues/icons'
+import { plain } from '@/lib/plain'
 import { TitleText } from '@/features/issues/TitleText'
 import { AUTO_ARCHIVE_MONTHS } from '@/model/schema'
 import { Button } from '@/ui/button'
@@ -25,9 +26,9 @@ export function ArchiveList({ team, left }: { team: string; left: React.ReactNod
   const [query, setQuery] = useState('')
   const [shown, setShown] = useState(PAGE)
   const list = useMemo(() => {
-    const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
+    const words = plain(query.trim()).split(/\s+/).filter(Boolean)
     return records
-      .filter((a) => words.every((w) => `${issueRef(a)} ${a.title}`.toLowerCase().includes(w)))
+      .filter((a) => words.every((w) => plain(`${issueRef(a)} ${a.title}`).includes(w)))
       .sort((a, b) => b.archivedAt.localeCompare(a.archivedAt) || b.number - a.number)
   }, [records, query])
 

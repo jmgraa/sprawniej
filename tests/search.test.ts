@@ -14,3 +14,10 @@ test('an exact ID comes first, then open issues, newest first', () => {
   expect(searchIssues(issues, 'login fix').map((i) => i.number)).toEqual([1])
   expect(searchIssues(issues, '  ')).toEqual([])
 })
+
+test('typing without Polish letters finds titles with them, and the other way round', () => {
+  const pl = Object.fromEntries([mk(5, 'Zażółć gęślą jaźń'), mk(6, 'Łączenie kont'), mk(7, 'Laczenie plikow')].map((i) => [i.id, i]))
+  expect(searchIssues(pl, 'zazolc gesla').map((i) => i.number)).toEqual([5])
+  expect(searchIssues(pl, 'laczenie').map((i) => i.number).sort()).toEqual([6, 7])
+  expect(searchIssues(pl, 'ŁĄCZENIE').map((i) => i.number).sort()).toEqual([6, 7])
+})

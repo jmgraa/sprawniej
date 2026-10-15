@@ -5,9 +5,10 @@
  */
 import { useState, type ReactNode } from 'react'
 import { Check, Plus } from 'lucide-react'
-import { defaultFilter } from 'cmdk'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover'
+import { plainFilter } from '@/lib/fuzzy'
+import { plain } from '@/lib/plain'
 import { cn } from '@/lib/utils'
 
 export interface PickerItem<V> {
@@ -39,9 +40,9 @@ const keyOf = (v: unknown) => JSON.stringify(v)
 
 /** cmdk's usual matching, except that typing an item's exact keyword ("ENG-1") puts it first, ahead of ENG-12 */
 const exactFirst = (value: string, search: string, keywords?: string[]) => {
-  const q = search.trim().toLowerCase()
-  if (q && keywords?.some((k) => k.toLowerCase() === q)) return 1
-  return defaultFilter(value, search, keywords) * 0.99
+  const q = plain(search.trim())
+  if (q && keywords?.some((k) => plain(k) === q)) return 1
+  return plainFilter(value, search, keywords) * 0.99
 }
 
 export function Picker<V>(props: Props<V>) {
