@@ -111,6 +111,9 @@ export async function checkKey(token: string): Promise<KeyCheck> {
   return { user: data, hasRepoScope: scopes.includes('repo') }
 }
 
+/** someone's public GitHub profile (their name, for matching them to someone from Linear) */
+export const getUser = (token: string, login: string) => get<GitHubUser>(token, `/users/${encodeURIComponent(login)}`)
+
 export const SIGN_UP_URL = 'https://github.com/signup'
 export const MAKE_KEY_URL = 'https://github.com/settings/tokens/new?scopes=repo&description=Sprawniej'
 

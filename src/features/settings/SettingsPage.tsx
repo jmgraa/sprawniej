@@ -1,6 +1,6 @@
 /** Settings: the workspace's name, the people in it (and inviting more), labels, and your account. */
 import { useEffect, useState, type ReactNode } from 'react'
-import { Copy, ExternalLink, Loader2, LogOut, Repeat, UserPlus } from 'lucide-react'
+import { Copy, ExternalLink, Link2, Loader2, LogOut, Repeat, UserPlus } from 'lucide-react'
 import { toast } from 'sonner'
 import { Link } from 'wouter'
 import { useShallow } from 'zustand/react/shallow'
@@ -9,7 +9,7 @@ import { switchWorkspace } from '@/app/signOut'
 import { useSignOut } from '@/components/SignOut'
 import { PersonAvatar } from '@/components/Avatar'
 import { renameWorkspace, setAutoArchive } from '@/data/actions'
-import { AUTO_ARCHIVE_MONTHS, isGuest } from '@/model/schema'
+import { AUTO_ARCHIVE_MONTHS, isGuest, type Person } from '@/model/schema'
 import { useData } from '@/data/store'
 import { inviteMessage, joinLink } from '@/features/onboarding/joinLink'
 import { Problem } from '@/features/onboarding/Step'
@@ -19,6 +19,8 @@ import { Button } from '@/ui/button'
 import { Input } from '@/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select'
 import { LabelsSettings } from './LabelsSettings'
+import { LinkPersonDialog } from './LinkPersonDialog'
+import { useUnlinked, workOf } from './unlinked'
 
 function Section({ title, children, description }: { title: string; description?: string; children: ReactNode }) {
   return (
@@ -69,6 +71,10 @@ function People() {
   const [problem, setProblem] = useState<string>()
   /** who was just invited, so we can hand over their join link */
   const [invited, setInvited] = useState<string>()
+  /** the link dialog: just invited (a GitHub login) or a person from Linear */
+  const [linking, setLinking] = useState<{ login: string } | { guest: Person }>()
+  const unlinked = useUnlinked()
+  const work = useData(useShallow((s) => Object.fromEntries(unlinked.map((g) => [g.login, workOf(s, g.login)]))))
 
   useEffect(() => {
     if (!repo) return
@@ -92,6 +98,8 @@ function People() {
       const r = await invite(token, repo, who)
       setLogin('')
       setInvited(who)
+      // people from Linear still to link: maybe it's one of them
+      if (unlinked.length && !people.some((p) => p.login === who && !isGuest(p.login) && (p as { linearIds?: unknown }).linearIds)) setLinking({ login: who })
       if (r === 'member') toast(`@${who} already has access`)
       else {
         toast(`Invited @${who}`, { description: 'Now send them their join link.' })
@@ -110,15 +118,18 @@ function People() {
     }
   }
 
+  const invitedLogins = sent.map((i) => i.invitee?.login).filter((l): l is string => !!l)
+  // an admin links people from Linear below; an invited person who was linked already shows once, as invited
+  const listed = people.filter((p) => !invitedLogins.includes(p.login) && !(admin && isGuest(p.login)))
   return (
     <div className="flex flex-col gap-8">
       <ul className="flex flex-col gap-1">
-        {people.map((p) => (
+        {listed.map((p) => (
           <li key={p.login} className="flex items-center gap-3 py-1.5">
             <PersonAvatar person={p} className="size-8 text-xs" />
             <span className="font-medium">{p.name}</span>
             {isGuest(p.login) ? (
-              <span className="rounded-full border px-2 text-xs leading-5 text-muted-foreground" title="Their issues and comments came with the import. Invite them, then import again to link everything to their account.">
+              <span className="rounded-full border px-2 text-xs leading-5 text-muted-foreground" title="Their issues and comments came with the import. An admin can link them to their GitHub account.">
                 From Linear, hasn't joined
               </span>
             ) : (
@@ -128,9 +139,11 @@ function People() {
         ))}
         {sent.map((i) => {
           const link = i.invitee && linkFor(i.invitee.login)
+          const known = people.find((p) => p.login === i.invitee?.login)
           return (
             <li key={i.id} className="flex items-center gap-3 py-1.5 text-muted-foreground">
-              <PersonAvatar login={i.invitee?.login ?? '?'} className="size-8 text-xs opacity-60" />
+              <PersonAvatar person={known} login={i.invitee?.login ?? '?'} className="size-8 text-xs opacity-60" />
+              {known && known.name !== known.login && <span className="font-medium text-foreground/80">{known.name}</span>}
               <span>@{i.invitee?.login}</span>
               <span className="rounded-full border px-2 text-xs leading-5">Invited, hasn't joined yet</span>
               {link && (
@@ -167,6 +180,36 @@ function People() {
       ) : (
         <p className="text-sm text-muted-foreground">Only the workspace's admins can invite people. Ask one of them; they'll get a join link to send.</p>
       )}
+
+      {admin && unlinked.length > 0 && (
+        <div>
+          <h3 className="mb-1 font-medium">People from Linear</h3>
+          <p className="mb-3 text-sm text-muted-foreground">
+            They came with the Linear import and aren't linked to a GitHub account yet. Link each one, and their issues, comments and views become theirs.
+          </p>
+          <ul className="flex flex-col gap-1">
+            {unlinked.map((g) => (
+              <li key={g.login} className="flex items-center gap-3 py-1.5">
+                <PersonAvatar person={g} className="size-8 text-xs" />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-medium">{g.name}</span>
+                  <span className="block truncate text-sm text-muted-foreground">{work[g.login] || 'Nothing of theirs yet'}</span>
+                </span>
+                <Button variant="outline" size="sm" onClick={() => setLinking({ guest: g })}>
+                  <Link2 /> Link to GitHub account
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {linking &&
+        ('login' in linking ? (
+          <LinkPersonDialog from="invite" login={linking.login} onClose={() => setLinking(undefined)} />
+        ) : (
+          <LinkPersonDialog from="linear" guest={linking.guest} invited={invitedLogins} onClose={() => setLinking(undefined)} />
+        ))}
     </div>
   )
 }

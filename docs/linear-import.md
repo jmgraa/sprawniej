@@ -14,7 +14,9 @@ from the browser (Linear allows that), so nothing passes through a server of our
 3. **People**: Linear people are matched to GitHub people in the workspace by name. You can fix any match. Someone
    with no match comes as a person who **hasn't joined** (`people/~jan-kowalski.json`): their issues stay assigned to
    them, their comments are theirs and views about them work. They get no inbox notes and can't be @mentioned. You
-   can also pick **No one**: their issues come in unassigned, and their comments say who wrote them.
+   can also pick **No one**: their issues come in unassigned, and their comments say who wrote them. Someone linked
+   to a GitHub account before (in Settings, or by an earlier import) is matched to it by their Linear id, whatever
+   their names.
 4. **Check**: how many teams, issues, comments, projects, labels and views will come over, and which views can't
    keep all their filters.
 5. **Import**: everything is written as files and saved as `Import from Linear: 412 issues`. Big imports are
@@ -89,8 +91,10 @@ views from Linear fails, the import goes on without them and says so.
 
 Each imported file remembers its Linear id (`linearId`), and so does a team that took in a Linear team. Running the
 import again picks those teams by itself and updates what came over instead of making copies, so you can import
-once early and again on switch-over day. Invite people before switch-over day: when the next import matches someone
-who hadn't joined to their GitHub account, everything that pointed at them (imported or made here since, issues and
-views) moves to their account, and their `~` file goes away. Linear's version wins for imported issues and views (except a view's layout,
+once early and again on switch-over day. People who hadn't joined don't need another import: link them in Settings
+(right after inviting them, or under People from Linear). If an import matches someone who hadn't joined to a GitHub
+account, the same happens: everything that pointed at them (imported or made here since: issues, archived issues,
+comments, project leads and views) moves to their account, their `~` file goes away, and their account remembers
+their Linear id (`linearIds`). Linear's version wins for imported issues and views (except a view's layout,
 which stays as you set it); issues and views made here are left alone.
 Issues deleted in Linear stay here, and issues archived here since the last import stay archived.

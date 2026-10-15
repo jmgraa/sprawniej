@@ -24,7 +24,10 @@ export const workspaceSchema = z
   .passthrough()
 export type Workspace = z.infer<typeof workspaceSchema>
 
-/** people/<login>.json, written by that person when they first open the workspace */
+/**
+ * people/<login>.json, written by that person when they first open the workspace (or before that, when someone from
+ * Linear is linked to their account; `linearIds` remembers who they were in Linear, see src/data/relink.ts)
+ */
 export const personSchema = z
   .object({
     login,
@@ -37,8 +40,8 @@ export type Person = z.infer<typeof personSchema>
 
 /**
  * Someone the Linear import brought who isn't in the workspace yet: `people/~jan-kowalski.json`, written by whoever
- * imported. Their issues, comments and views keep pointing at them; a later import that matches them to a GitHub
- * person moves all of that over. A `~` can't start a GitHub login, so they never clash, and they get no inbox notes.
+ * imported. Their issues, comments and views keep pointing at them; linking them to a GitHub account (Settings, or a
+ * later import that matches them) moves all of that over. A `~` can't start a GitHub login, so they never clash, and they get no inbox notes.
  */
 export const isGuest = (login: string | null | undefined): boolean => !!login && login.startsWith('~')
 
