@@ -14,6 +14,7 @@ import { ViewPage } from '@/features/views/ViewPage'
 import { ViewsPage } from '@/features/views/ViewsPage'
 import { SettingsPage } from '@/features/settings/SettingsPage'
 import { ImportPage } from '@/features/import/ImportPage'
+import { WhatsNewPage } from '@/features/whatsnew/WhatsNewPage'
 import { Gate } from './Gate'
 import { NotFound } from './NotFound'
 import { Shell } from './Shell'
@@ -43,6 +44,7 @@ export function App() {
             <Route path="/team/:key/views" component={ViewsPage} />
             <Route path="/issue/:ref" component={IssuePage} />
             <Route path="/help" component={HelpPage} />
+            <Route path="/whats-new" component={WhatsNewPage} />
             <Route path="/settings" component={SettingsPage} />
             <Route path="/settings/import" component={ImportPage} />
             <Route component={NotFound} />

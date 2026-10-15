@@ -4,7 +4,7 @@
  */
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useLocation } from 'wouter'
-import { Box, CircleHelp, Download, Inbox, Layers, PanelLeft, Settings, SquarePen, SquareStack, User } from 'lucide-react'
+import { Box, CircleHelp, Download, Inbox, Layers, PanelLeft, Settings, Sparkles, SquarePen, SquareStack, User } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { loadArchive } from '@/data/project'
 import { searchIssues } from '@/data/search'
@@ -48,6 +48,7 @@ function Palette() {
       { id: 'views', label: 'Views', icon: <Layers />, run: go('/views') },
       { id: 'settings', label: 'Settings and people', icon: <Settings />, run: go('/settings') },
       { id: 'help', label: 'Help', icon: <CircleHelp />, run: go('/help') },
+      { id: 'whats-new', label: 'What’s new', icon: <Sparkles />, run: go('/whats-new'), words: 'changelog changes release version' },
     ],
     // eslint-style deps: navigate is stable
     // oxlint-disable-next-line react-hooks/exhaustive-deps

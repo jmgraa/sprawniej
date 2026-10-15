@@ -1,11 +1,11 @@
 /**
  * The app's version and its changelog: one list, which `scripts/changelog.ts` turns into CHANGELOG.md.
- * Newest release first. (The app doesn't show it anywhere yet.)
+ * Newest release first. The app shows it on the What's new page (#/whats-new).
  *
  * Numbering (see CLAUDE.md): MAJOR.MINOR.PATCH. Major = the repo format or the way you work changes,
  * minor = a new feature, patch = fixes and polish. Notes are written for the people using Sprawniej.
  */
-export const APP_VERSION = '1.8.4'
+export const APP_VERSION = '1.8.5'
 
 export interface Release {
   version: string
@@ -18,6 +18,12 @@ export interface Release {
 }
 
 export const CHANGELOG: Release[] = [
+  {
+    version: '1.8.5',
+    date: '2026-10-15',
+    title: 'What’s new',
+    notes: ['See what changed in each version: What’s new in the menu under your name, or type “what’s new” in ⌘K'],
+  },
   {
     version: '1.8.4',
     date: '2026-10-15',
