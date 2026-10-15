@@ -8,10 +8,12 @@ import { ExternalLink, Loader2, RefreshCw } from 'lucide-react'
 import { acceptInvitation, getRepo, GitHubError, plainError, SIGN_UP_URL } from '@/github/api'
 import { PersonAvatar } from '@/components/Avatar'
 import { useSession } from '@/session'
+import { useSignOut } from '@/components/SignOut'
 import { Button } from '@/ui/button'
 import { KeyStep } from './KeyStep'
 import { Problem, Step } from './Step'
 import { linkIsForSomeoneElse, readJoinLink } from './joinLink'
+import { nameFromRepo } from './repoNames'
 
 type Stage = 'welcome' | 'account' | 'signup' | 'key' | 'joining' | 'no-invite' | 'done'
 
@@ -23,7 +25,10 @@ export function JoinWizard() {
   const [problem, setProblem] = useState<string>()
   const [attempt, setAttempt] = useState(0)
 
-  const name = link?.ws ?? link?.repo.repo ?? 'your team'
+  // signs out the safe way (this browser's copies go too) and comes back to this link, to sign in again
+  const { signOut: switchAccount, dialog: signOutDialog } = useSignOut(location.hash)
+
+  const name = link?.ws ?? (link ? nameFromRepo(link.repo.repo) : 'your team')
   const signedIn = !!session.token && !!session.user
 
   useEffect(() => {
@@ -55,11 +60,6 @@ export function JoinWizard() {
   }, [stage, attempt, link])
 
   if (!link) return <Redirect to="/" replace />
-
-  const switchAccount = () => {
-    session.signOut()
-    setStage('account')
-  }
 
   const go = () => {
     session.open(link.repo)
@@ -181,6 +181,7 @@ export function JoinWizard() {
               </>
             }
           >
+            {signOutDialog}
             <p>
               This link was made for <b>@{link.for}</b>, but you're signed in as <b>@{session.user?.login}</b>.
             </p>
@@ -206,6 +207,7 @@ export function JoinWizard() {
             </>
           }
         >
+          {signOutDialog}
           <p>
             You're signed in as <b>@{session.user?.login}</b>, but there's no invitation to {name} for this account yet.
           </p>

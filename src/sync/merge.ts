@@ -241,5 +241,30 @@ export function mergeIncoming(base: Map<string, string>, pending: Map<string, st
     }
     settle(path, mergeFile(path, base.get(path) ?? null, pending.get(path)!, theirs), theirs)
   }
+
+  // edit beats delete: an issue that stays keeps its comments too, which the delete took along with it
+  const revived = new Set<string>()
+  for (const [p, t] of out.shown) {
+    const c = classify(p)
+    if (c?.kind !== 'issue' || t === null) continue
+    const theyDeleted = incoming.get(p) === null && typeof pending.get(p) === 'string'
+    const weDeleted = pending.get(p) === null && typeof incoming.get(p) === 'string'
+    if (theyDeleted || weDeleted) revived.add(c.parts[1])
+  }
+  if (revived.size) {
+    for (const [p, text] of base) {
+      const c = classify(p)
+      if (c?.kind !== 'comment' || !revived.has(c.parts[1])) continue
+      if (incoming.get(p) === null && !pending.has(p)) {
+        // they deleted it with the issue: we put it back
+        out.pending.set(p, text)
+        out.shown.set(p, text)
+      } else if (pending.get(p) === null && !incoming.has(p)) {
+        // we deleted it with the issue: we don't anymore
+        out.pending.set(p, undefined)
+        out.shown.set(p, text)
+      }
+    }
+  }
   return out
 }

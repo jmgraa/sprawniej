@@ -7,6 +7,7 @@ import { Clock, Lock, Mail, Plus, Search } from 'lucide-react'
 import { acceptInvitation, listMyInvitations, listMyRepos, plainError, repoKey, type MyInvitation, type RepoInfo, type RepoRef } from '@/github/api'
 import { Logo } from '@/components/Logo'
 import { useSession } from '@/session'
+import { useSignOut } from '@/components/SignOut'
 import { Button } from '@/ui/button'
 import { Input } from '@/ui/input'
 import { NewWorkspace } from './NewWorkspace'
@@ -26,7 +27,8 @@ function Row({ title, sub, onClick, icon }: { title: string; sub?: string; onCli
 }
 
 export function PickWorkspace() {
-  const { token, user, recent, open, signOut } = useSession()
+  const { token, user, recent, open } = useSession()
+  const { signOut, dialog: signOutDialog } = useSignOut()
   const [repos, setRepos] = useState<RepoInfo[] | null>(null)
   const [invites, setInvites] = useState<MyInvitation[]>([])
   const [query, setQuery] = useState('')
@@ -77,6 +79,7 @@ export function PickWorkspace() {
         </>
       }
     >
+      {signOutDialog}
       <Problem>{problem}</Problem>
       {invites.length > 0 && (
         <section className="mb-6">
@@ -108,7 +111,7 @@ export function PickWorkspace() {
             const groupStart = i === 0 || ws !== isWorkspaceRepo(shown[i - 1].name)
             return (
               <div key={r.full_name}>
-                {groupStart && <h3 className="px-3 pt-3 pb-1 text-xs font-medium text-muted-foreground">{ws ? 'Sprawniej workspaces' : 'Other repositories'}</h3>}
+                {groupStart && <h3 className="px-3 pt-3 pb-1 text-xs font-medium text-muted-foreground">{ws ? 'Sprawniej workspaces' : 'Other places on GitHub'}</h3>}
                 <Row
                   icon={ws ? <Logo className="size-4" /> : r.private ? <Lock className="size-4 text-muted-foreground" /> : <span className="size-4" />}
                   title={r.full_name}

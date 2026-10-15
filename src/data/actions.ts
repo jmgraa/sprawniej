@@ -97,6 +97,9 @@ function describe(issue: Issue, patch: IssuePatch): string {
 export function updateIssue(id: string, patch: IssuePatch): void {
   const old = useData.getState().issues[id]
   if (!old) return
+  // picking what it already is (Todo on a Todo issue) changes nothing, so nothing is saved
+  const same = (k: keyof IssuePatch) => JSON.stringify(patch[k] ?? null) === JSON.stringify(old[k as keyof Issue] ?? null)
+  if ((Object.keys(patch) as (keyof IssuePatch)[]).every(same)) return
   const next: Issue = { ...old, ...patch, updatedAt: now() }
   if (patch.status && patch.status !== old.status) {
     next.completedAt = statusOf(patch.status).group === 'completed' ? now() : null
@@ -263,7 +266,7 @@ export function moveIssueToTeam(id: string, team: string): Issue | undefined {
   const old = s.issues[id]
   if (!old || old.team === team || !s.teams[team]) return old
   const number = nextNumber(team)
-  const next: Issue = { ...old, team, number, updatedAt: now() }
+  const next: Issue = { ...old, team, number, formerRefs: [...(old.formerRefs ?? []), issueRef(old)], updatedAt: now() }
   const files = new Map<string, string | null>([
     [pathOf((p) => p.kind === 'issue' && p.value.id === id) ?? paths.issue(old), null],
     [paths.issue(next), issueToFile(next)],
@@ -328,21 +331,34 @@ export function archiveIssues(ids: string[], { auto = false } = {}): number {
   return n
 }
 
-/** Bring an archived issue back, with its comments, where it was. Needs the archive loaded (loadArchive). */
+/**
+ * Bring an archived issue back, with its comments, where it was. Sub-issues that were archived together with it come
+ * back too. Needs the archive loaded (loadArchive).
+ */
 export function restoreIssue(id: string): Issue | undefined {
   const s = useData.getState()
   const a = s.archive[id]
   if (!a || s.issues[id]) return s.issues[id]
-  const { archivedAt: _at, archivedBy: _by, comments, ...rest } = a
+  const all = [a]
+  for (let k = 0; k < all.length; k++) {
+    for (const c of Object.values(s.archive)) if (c.parent === all[k].id && c.archivedAt === a.archivedAt && !s.issues[c.id] && !all.includes(c)) all.push(c)
+  }
   const files = new Map<string, string | null>()
-  for (const path of archivePathsOf(a.team, id)) editArchive(files, path, a.team, (old) => old.filter((r) => r.id !== id))
-  // a number someone took meanwhile (only by editing files by hand) means a new one
-  const taken = Object.values(s.issues).some((i) => i.team === a.team && i.number === a.number)
-  const issue: Issue = { ...rest, number: taken ? nextNumber(a.team) : a.number, updatedAt: now() }
-  files.set(paths.issue(issue), issueToFile(issue))
-  for (const c of comments) files.set(paths.comment(a.team, c), commentFile(c))
-  save(files, `Restore ${issueRef(issue)}`)
-  return issue
+  const restored: Issue[] = []
+  let bump = 0
+  for (const r of all) {
+    const { archivedAt: _at, archivedBy: _by, comments, ...rest } = r
+    for (const path of archivePathsOf(r.team, r.id)) editArchive(files, path, r.team, (old) => old.filter((x) => x.id !== r.id))
+    // a number someone took meanwhile (only by editing files by hand) means a new one
+    const taken = Object.values(s.issues).some((i) => i.team === r.team && i.number === r.number)
+    const issue: Issue = { ...rest, number: taken ? nextNumber(r.team) + bump++ : r.number, updatedAt: now() }
+    files.set(paths.issue(issue), issueToFile(issue))
+    for (const c of comments) files.set(paths.comment(r.team, c), commentFile(c))
+    restored.push(issue)
+  }
+  const n = restored.length - 1
+  save(files, n ? `Restore ${issueRef(restored[0])} and ${n} sub-issue${n === 1 ? '' : 's'}` : `Restore ${issueRef(restored[0])}`)
+  return restored[0]
 }
 
 /** a moment `months` months before `at`, as ISO */
@@ -413,6 +429,9 @@ function mendArchive() {
 
 const tidyBody = (body: string) => body.replace(/\s+$/, '')
 
+/** where a comment's file really is (usually under the issue's team, but not if the issue moved meanwhile) */
+const commentPath = (id: string) => pathOf((p) => p.kind === 'comment' && p.value.id === id)
+
 export function createComment(issueId: string, body: string): Comment | undefined {
   const s = useData.getState()
   const issue = s.issues[issueId]
@@ -432,6 +451,9 @@ export function updateComment(issueId: string, id: string, body: string) {
   if (!issue || !old || !s.me || old.author !== s.me.login || !body.trim() || tidyBody(body) === old.body) return
   const next: Comment = { ...old, body: tidyBody(body), editedAt: now() }
   const files = one(paths.comment(issue.team, next), commentFile(next))
+  // written in the issue's old team while a teammate moved the issue: it moves along now
+  const was = commentPath(id)
+  if (was && was !== paths.comment(issue.team, next)) files.set(was, null)
   addNotes(files, issueId, commentNotes(issue, next, old.body, [], s.me.login, s.people))
   save(files, `${issueRef(issue)}: edit comment`)
 }
@@ -441,7 +463,7 @@ export function deleteComment(issueId: string, id: string) {
   const issue = s.issues[issueId]
   const old = s.comments[issueId]?.find((c) => c.id === id)
   if (!issue || !old || !s.me || old.author !== s.me.login) return
-  const files = one(paths.comment(issue.team, old), null)
+  const files = one(commentPath(id) ?? paths.comment(issue.team, old), null)
   dropNotes(files, (n) => n.comment === id)
   save(files, `${issueRef(issue)}: delete comment`)
 }
@@ -521,8 +543,11 @@ export function createLabel(name: string): Label {
 }
 
 export function updateLabel(id: string, patch: Partial<Pick<Label, 'name' | 'color'>>) {
-  const label = useData.getState().labels[id]
+  const labels = useData.getState().labels
+  const label = labels[id]
   if (!label) return
+  // two labels with one name can't be told apart in pickers and filters
+  if (patch.name !== undefined && Object.values(labels).some((l) => l.id !== id && l.name.toLowerCase() === patch.name!.trim().toLowerCase())) return
   save(one(paths.label(id), jsonToFile({ ...label, ...patch })), `Edit label ${patch.name ?? label.name}`)
 }
 
@@ -535,7 +560,24 @@ export function deleteLabel(id: string) {
   for (const i of Object.values(s.issues)) {
     if (i.labels.includes(id)) files.set(paths.issue(i), issueToFile({ ...i, labels: i.labels.filter((l) => l !== id), updatedAt: now() }))
   }
+  dropFromViews(files, 'labels', id)
   save(files, `Delete label ${label.name}`)
+}
+
+/**
+ * A label, project or team that's gone comes out of saved views' filters where others are left ("Bug or Design"
+ * becomes "Design"). Where it was the only one, it stays: the view keeps showing nothing rather than suddenly showing
+ * every issue, and its filter says the one it was about was deleted.
+ */
+function dropFromViews(files: Map<string, string | null>, field: 'labels' | 'projects' | 'teams', id: string) {
+  for (const v of Object.values(useData.getState().views)) {
+    if (files.has(paths.view(v.id))) continue // being deleted already
+    const list = v.filters[field] as (string | null)[] | undefined
+    if (!list?.includes(id)) continue
+    const rest = list.filter((x) => x !== id)
+    if (!rest.length) continue
+    files.set(paths.view(v.id), jsonToFile({ ...v, filters: { ...v.filters, [field]: rest } }))
+  }
 }
 
 // ---------- views ----------
@@ -630,6 +672,7 @@ export function deleteProject(id: string) {
   if (!project) return
   const files = new Map<string, string | null>([[paths.project(id), null]])
   for (const i of Object.values(s.issues)) if (i.project === id) files.set(paths.issue(i), issueToFile({ ...i, project: null, updatedAt: now() }))
+  dropFromViews(files, 'projects', id)
   save(files, `Delete project ${project.emoji} ${project.name}`)
 }
 
@@ -646,7 +689,7 @@ export function createTeam(input: { key: string; name: string; emoji: string }):
 export function setAutoArchive(key: string, months: number) {
   const team = useData.getState().teams[key]
   if (!team || (team.autoArchive ?? AUTO_ARCHIVE_MONTHS) === months) return
-  save(one(paths.team(key), jsonToFile({ ...team, autoArchive: months })), months ? `${team.name}: archive finished issues after ${months} months` : `${team.name}: never archive finished issues`)
+  save(one(paths.team(key), jsonToFile({ ...team, autoArchive: months })), months ? `${team.name}: archive finished issues after ${months} ${months === 1 ? 'month' : 'months'}` : `${team.name}: never archive finished issues`)
 }
 
 /** a team's name or emoji; its key stays (issue numbers like ENG-12 are made from it) */
@@ -694,6 +737,7 @@ export function deleteTeam(key: string) {
     if (i.team !== key && i.parent && gone.has(i.parent)) files.set(paths.issue(i), issueToFile({ ...i, parent: null, updatedAt: now() }))
   }
   for (const v of Object.values(s.views)) if (v.team === key) files.set(paths.view(v.id), null)
+  dropFromViews(files, 'teams', key)
   for (const p of Object.values(s.projects)) if (p.teams.includes(key)) files.set(paths.project(p.id), jsonToFile({ ...p, teams: p.teams.filter((t) => t !== key) }))
   dropNotes(files, (n) => gone.has(n.issue))
   save(files, `Delete team ${team.emoji} ${team.name}`)

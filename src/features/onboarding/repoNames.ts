@@ -24,3 +24,9 @@ export const isWorkspaceRepo = (repoName: string) => repoName.toLowerCase().star
 export function workspacesFirst<T extends { name: string }>(repos: T[]): T[] {
   return [...repos.filter((r) => isWorkspaceRepo(r.name)), ...repos.filter((r) => !isWorkspaceRepo(r.name))]
 }
+
+/** a readable name when all we have is the repository's: "workspace-sprawniej-acme-studio" → "Acme studio" */
+export function nameFromRepo(repoName: string): string {
+  const words = (isWorkspaceRepo(repoName) ? repoName.slice(WORKSPACE_PREFIX.length) : repoName).replace(/[-_.]+/g, ' ').trim()
+  return words ? words[0].toUpperCase() + words.slice(1) : repoName
+}

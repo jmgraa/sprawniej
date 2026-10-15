@@ -3,7 +3,7 @@
  * Write with the same editor as descriptions (@ mentions people, who then hear about it in their Inbox). Your own comments can be edited (saved as you type) or deleted. A comment you haven't
  * sent yet stays in this browser, so leaving the page doesn't lose it.
  */
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
 import { PersonAvatar } from '@/components/Avatar'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
@@ -37,7 +37,7 @@ function CommentItem({ comment, mine }: { comment: Comment; mine: boolean }) {
         {mine && !editing && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon-sm" className="ml-auto opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100" aria-label="Comment actions">
+              <Button variant="ghost" size="icon-sm" className="ml-auto [@media(hover:hover)]:opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100" aria-label="Comment actions">
                 <MoreHorizontal />
               </Button>
             </DropdownMenuTrigger>
@@ -112,8 +112,13 @@ function NewComment({ issue }: { issue: string }) {
 /** comments and history, oldest first, with the box for a new comment at the end */
 export function Comments({ issue, archived }: { issue: Issue; archived?: ArchivedIssue }) {
   const live = useData((s) => s.comments[issue.id])
-  // an archived issue keeps its comments with it, and they can't change
-  const comments = archived ? archived.comments : live
+  // an archived issue keeps its comments with it, and they can't change. One written while someone archived it
+  // waits outside the archive until the daily tidy-up moves it in: show it already.
+  const comments = useMemo(() => {
+    if (!archived) return live
+    const extra = (live ?? []).filter((c) => !archived.comments.some((a) => a.id === c.id))
+    return extra.length ? [...archived.comments, ...extra].sort((a, b) => a.createdAt.localeCompare(b.createdAt)) : archived.comments
+  }, [archived, live])
   const me = useData((s) => s.me?.login)
   const history = useIssueHistory(issue)
   useEffect(() => {

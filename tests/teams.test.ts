@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
-import { archiveIssues, createComment, createIssue, createProject, createView, deleteTeam, joinTeam, leaveTeam, updateIssue, updateTeam } from '@/data/actions'
-import { jsonToFile, paths } from '@/data/files'
+import { archiveIssues, createComment, createIssue, createLabel, createProject, createView, deleteLabel, deleteProject, deleteTeam, joinTeam, leaveTeam, moveIssueToTeam, updateIssue, updateTeam } from '@/data/actions'
+import { issueToFile, jsonToFile, paths } from '@/data/files'
 import { applyFiles, archiveFiles, parsedFiles, resetProjection } from '@/data/project'
-import { EMPTY, useData } from '@/data/store'
+import { EMPTY, findByRef, useData } from '@/data/store'
 import { DEFAULT_DISPLAY } from '@/data/displays'
 import type { Person, Team } from '@/model/schema'
 
@@ -60,4 +60,31 @@ describe('teams', () => {
     expect(s.views[engView.id]).toBeUndefined()
     expect(s.views[wide.id]).toBeDefined()
   })
+})
+
+test('an issue that moved to another team stays on screen, whichever order the paths arrive in', () => {
+  const issue = createIssue({ team: 'ENG', title: 'Moves around' })
+  const moved = { ...issue, team: 'DES', number: 1 }
+  // the new place first, then the old one gone (the order a pull can bring them in)
+  applyFiles(new Map([[paths.issue(moved), issueToFile(moved)], [paths.issue(issue), null]]), 'ana')
+  expect(state().issues[issue.id]).toMatchObject({ team: 'DES', number: 1 })
+})
+
+test('deleting a label, project or team takes it out of saved views', () => {
+  const label = createLabel('Bug')
+  const keep = createLabel('Design')
+  const project = createProject({ name: 'Launch', emoji: '🚀', teams: ['ENG'] })
+  const view = createView({ name: 'Mixed', emoji: '🧪', team: null, filters: { labels: [label.id, keep.id], projects: [project.id], teams: ['DES', 'ENG'] }, display: DEFAULT_DISPLAY })
+  deleteLabel(label.id)
+  deleteProject(project.id)
+  deleteTeam('DES')
+  expect(state().views[view.id].filters).toEqual({ labels: [keep.id], projects: [project.id], teams: ['ENG'] })
+})
+
+test('an issue moved to another team still answers to its old number', () => {
+  const issue = createIssue({ team: 'ENG', title: 'Wanders off' })
+  const moved = moveIssueToTeam(issue.id, 'DES')!
+  expect(moved.formerRefs).toEqual([`ENG-${issue.number}`])
+  expect(findByRef(state().issues, `ENG-${issue.number}`)?.id).toBe(issue.id)
+  expect(findByRef(state().issues, `DES-${moved.number}`)?.id).toBe(issue.id)
 })

@@ -83,7 +83,7 @@ export function FilterChips({ filters, onChange, hide = [], extra, open, setOpen
     <div className="flex flex-wrap items-center gap-2">
       {shown.map((k) => {
         const values = (filters[k.key] ?? []) as unknown[]
-        const names = values.map((v) => items[k.key].find((i) => JSON.stringify(i.value) === JSON.stringify(v))?.label ?? String(v))
+        const names = values.map((v) => items[k.key].find((i) => JSON.stringify(i.value) === JSON.stringify(v))?.label ?? (v === null ? String(v) : 'one that was deleted'))
         return (
           <span key={k.key} className="inline-flex h-8 items-center rounded-lg border text-sm">
             <Picker

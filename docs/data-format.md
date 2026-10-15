@@ -113,6 +113,7 @@ Charts should be easier to read at a glance.
 | `estimate` | Optional. Points; the app offers 1, 2, 3, 5 and 8, and keeps any other number it finds. |
 | `subscribers` | Optional. Logins that asked to follow the issue. |
 | `unsubscribed` | Optional. Logins that asked not to follow it. |
+| `formerRefs` | Optional. The numbers it had before it moved to another team (`["WEB-2"]`). Old links and mentions of those numbers open it; the numbers themselves are never given out again. |
 
 People follow an issue by themselves when they created it, are assigned to it, commented on it or were mentioned in
 it; `subscribers` adds people to that, and `unsubscribed` takes people out. Changing these doesn't change `updatedAt`.

@@ -199,12 +199,15 @@ export function applyFiles(changes: Map<string, string | null>, me: string | nul
     d[f] = (v && typeof v === 'object' && !Array.isArray(v) && f !== 'workspace' && f !== 'readState' ? { ...v } : v) as never
   }
   const draft = d as Draft
-  for (const [path, p] of parsed) {
+  // everything old goes first: a thing that moved (an issue to another team) is removed at its old path and added
+  // at its new one, whichever order the paths came in
+  for (const path of parsed.keys()) {
     const old = index.get(path)
-    if (old) {
-      remove(draft, old)
-      index.delete(path)
-    }
+    if (!old) continue
+    remove(draft, old)
+    index.delete(path)
+  }
+  for (const [path, p] of parsed) {
     if (!p) continue
     index.set(path, p)
     add(draft, p, me)

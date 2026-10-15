@@ -2,7 +2,7 @@
  * The new issue dialog (C anywhere, the pencil in the sidebar, or + on a group). Only the title is needed;
  * properties are optional chips. ⌘/Ctrl + Enter creates. "Create more" keeps the dialog open for the next one.
  */
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useLocation } from 'wouter'
 import { useShallow } from 'zustand/react/shallow'
 import { toast } from 'sonner'
@@ -42,6 +42,10 @@ function fresh(d: Partial<NewIssue>, fallbackTeam: string): Draft {
   }
 }
 
+/** what was typed into a dialog that was closed without creating (Esc, a click outside): it comes back next time */
+let unsent: { title: string; description: string } | null = null
+const keepUnsent = (title: string, description: string) => (unsent = title.trim() || description.trim() ? { title, description } : null)
+
 function Composer() {
   const [, navigate] = useLocation()
   const defaults = useComposer((s) => s.defaults)
@@ -50,7 +54,19 @@ function Composer() {
   const labels = useData((s) => s.labels)
   const projects = useData((s) => s.projects)
   const issues = useData((s) => s.issues)
-  const [draft, setDraft] = useState<Draft>(() => fresh(defaults, teams[0]?.key ?? ''))
+  const [draft, setDraft] = useState<Draft>(() => {
+    const d = fresh(defaults, teams[0]?.key ?? '')
+    // opened for something specific (a sub-issue with its title): the unsent text waits for a plain "new issue"
+    if (!unsent || defaults.title) return d
+    const back = { ...d, title: unsent.title, description: unsent.description }
+    unsent = null
+    return back
+  })
+  // the editor's latest text, kept as you type (it hands it over a moment later, or as the dialog closes)
+  const typed = useRef({ title: draft.title, description: draft.description })
+  const [startedWith] = useState(draft.description)
+  /** created and closing: nothing is left over */
+  const created = useRef(false)
   const [more, setMore] = useState(false)
   // the editor keeps its own text; a new key empties it after "create more"
   const [round, setRound] = useState(0)
@@ -65,6 +81,9 @@ function Composer() {
   function submit(description?: string) {
     if (!draft.title.trim() || !team) return
     const issue = createIssue(description === undefined ? draft : { ...draft, description })
+    typed.current = { title: '', description: '' }
+    unsent = null
+    created.current = !more
     toast(`Created ${issueRef(issue)}`, { description: issue.title, action: { label: 'Open', onClick: () => navigate(`/issue/${issueRef(issue)}`) } })
     if (more) {
       setDraft((d) => ({ ...d, title: '', description: '' }))
@@ -113,7 +132,12 @@ function Composer() {
         <textarea
           autoFocus
           value={draft.title}
-          onChange={(e) => set({ title: e.target.value.replace(/\n/g, ' ') })}
+          onChange={(e) => {
+            const title = e.target.value.replace(/\n/g, ' ')
+            set({ title })
+            typed.current.title = title
+            keepUnsent(title, typed.current.description)
+          }}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
               e.preventDefault()
@@ -126,7 +150,15 @@ function Composer() {
           aria-label="Title"
           className="field-sizing-content w-full resize-none bg-transparent text-xl font-semibold outline-none placeholder:text-muted-foreground/70"
         />
-        <Editor key={round} value="" onChange={(description) => set({ description })} onSubmit={submit} className="mt-2 max-h-[40vh] min-h-20 overflow-y-auto" />
+        <Editor
+          key={round}
+          value={round === 0 ? startedWith : ''}
+          onChange={(description) => {
+            set({ description })
+            typed.current.description = description
+            if (!created.current) keepUnsent(typed.current.title, description)
+          }}
+          onSubmit={submit} className="mt-2 max-h-[40vh] min-h-20 overflow-y-auto" />
       </div>
       <div className="flex flex-wrap gap-2 px-5 pt-3 pb-4">
         <Picker placeholder="Status…" items={statusItems} value={draft.status} onSelect={(status) => set({ status })}>

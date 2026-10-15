@@ -8,7 +8,7 @@ import { Box, CircleHelp, Download, Inbox, Layers, PanelLeft, Settings, SquarePe
 import { useShallow } from 'zustand/react/shallow'
 import { loadArchive } from '@/data/project'
 import { searchIssues } from '@/data/search'
-import { issueRef, useData } from '@/data/store'
+import { findByRef, issueRef, useData } from '@/data/store'
 import { openComposer } from '@/features/issues/composer'
 import { StatusIcon } from '@/features/issues/icons'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandShortcut } from '@/ui/command'
@@ -74,7 +74,14 @@ function Palette() {
     if (q) loadArchive()
   }, [q])
   const old = useMemo(() => Object.fromEntries(Object.entries(archive).filter(([id]) => !issues[id])), [archive, issues])
-  const foundOld = found.length < 12 ? searchIssues(old, query, Math.min(6, 12 - found.length)) : []
+  // an archived issue asked for by its exact number (WEB-3) always shows, and first: WEB-30…39 mustn't bury it
+  const exactOld = q ? findByRef(old, q) : undefined
+  const exactActive = q ? findByRef(issues, q) : undefined
+  const foundOld = useMemo(() => {
+    const rest = found.length < 12 ? searchIssues(old, query, Math.min(6, 12 - found.length)) : []
+    return exactOld ? [exactOld, ...rest.filter((i) => i !== exactOld)] : rest
+  }, [found.length, old, query, exactOld])
+  const oldFirst = !!exactOld && !exactActive
   const show = (list: Entry[]) => (q ? list.filter((e) => matches(e, q)) : list)
   const groups: [string, Entry[]][] = [
     ['Actions', show(actions)],
@@ -86,11 +93,24 @@ function Palette() {
     run()
   }
 
+  const archivedGroup = foundOld.length > 0 && (
+    <CommandGroup heading="Archived">
+      {foundOld.map((i) => (
+        <CommandItem key={i.id} value={`archived-${i.id}`} onSelect={() => pick(go(`/issue/${issueRef(i)}`))} className="text-muted-foreground">
+          <StatusIcon status={i.status} />
+          <span className="min-w-[4.75rem] shrink-0 whitespace-nowrap tabular-nums">{issueRef(i)}</span>
+          <span className="truncate">{i.title}</span>
+        </CommandItem>
+      ))}
+    </CommandGroup>
+  )
+
   return (
     <Command shouldFilter={false} loop className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-item]]:py-2.5 [&_[cmdk-item]_svg]:size-4">
       <CommandInput placeholder="Search issues, or type a command…" value={query} onValueChange={setQuery} className="h-12 text-[15px]" />
       <CommandList className="max-h-[min(60vh,28rem)]">
         <CommandEmpty>Nothing matches “{query.trim()}”.</CommandEmpty>
+        {oldFirst && archivedGroup}
         {found.length > 0 && (
           <CommandGroup heading="Issues">
             {found.map((i) => (
@@ -102,17 +122,7 @@ function Palette() {
             ))}
           </CommandGroup>
         )}
-        {foundOld.length > 0 && (
-          <CommandGroup heading="Archived">
-            {foundOld.map((i) => (
-              <CommandItem key={i.id} value={`archived-${i.id}`} onSelect={() => pick(go(`/issue/${issueRef(i)}`))} className="text-muted-foreground">
-                <StatusIcon status={i.status} />
-                <span className="w-16 shrink-0 tabular-nums">{issueRef(i)}</span>
-                <span className="truncate">{i.title}</span>
-              </CommandItem>
-            ))}
-          </CommandGroup>
-        )}
+        {!oldFirst && archivedGroup}
         {groups.map(
           ([heading, list]) =>
             list.length > 0 && (

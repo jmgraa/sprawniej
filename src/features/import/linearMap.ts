@@ -324,15 +324,16 @@ export function buildImport(data: LinearData, choices: ImportChoices, ws: Existi
   const idOf = new Map(issues.map((i) => [i.id, issuesByLinear.get(i.id)?.id ?? archivedByLinear.get(i.id)?.id ?? newId()]))
   const refs = new Set(issues.map((i) => `${keyOf(i.team)}-${i.number}`))
   const taken = new Map<string, Set<number>>()
-  for (const i of [...Object.values(ws.issues), ...archived]) {
-    if (linearIdOf(i) && idOf.has(linearIdOf(i)!) && !archivedByLinear.has(linearIdOf(i)!)) continue
-    taken.set(i.team, (taken.get(i.team) ?? new Set()).add(i.number))
-  }
+  // every number in use here counts, including issues an earlier import brought in: they keep theirs
+  for (const i of [...Object.values(ws.issues), ...archived]) taken.set(i.team, (taken.get(i.team) ?? new Set()).add(i.number))
   const highest = new Map<string, number>()
   const raise = (team: string, n: number) => highest.set(team, Math.max(highest.get(team) ?? 0, n))
   for (const [team, used] of taken) for (const n of used) raise(team, n)
   for (const t of Object.values(ws.teams)) raise(t.key, t.lastNumber ?? 0)
-  for (const li of issues) raise(issuesByLinear.get(li.id)?.team ?? keyOf(li.team), li.number)
+  for (const li of issues) {
+    const old = issuesByLinear.get(li.id)
+    raise(old?.team ?? keyOf(li.team), old?.number ?? li.number)
+  }
   const plan: { li: LIssue; team: string; number: number }[] = []
   for (const li of [...issues].sort((a, b) => a.number - b.number)) {
     if (archivedByLinear.has(li.id)) {
@@ -346,7 +347,8 @@ export function buildImport(data: LinearData, choices: ImportChoices, ws: Existi
     const used = taken.get(team) ?? new Set<number>()
     taken.set(team, used)
     let number = old?.number ?? li.number
-    if (!old && used.has(number)) {
+    // a number is never given out twice, even if the issue that had it was deleted here (lastNumber remembers)
+    if (!old && (used.has(number) || number <= (ws.teams[team]?.lastNumber ?? 0))) {
       const n = (highest.get(team) ?? 0) + 1
       raise(team, n)
       renumbered.push({ from: `${team}-${number}`, to: `${team}-${n}` })
@@ -419,9 +421,31 @@ export function buildImport(data: LinearData, choices: ImportChoices, ws: Existi
 
   // comments: matched authors keep their name; others are written by you, saying who wrote them
   const commentsByLinear = byLinearId(Object.values(ws.comments).flat())
+  /** issues archived here (by an earlier import or by hand) that get new comments from Linear */
+  const archivedWithNew = new Map<string, ArchivedIssue>()
   for (const c of [...data.comments].sort((a, b) => a.createdAt.localeCompare(b.createdAt))) {
-    const issue = c.issue && pathOfIssue.get(c.issue.id)
-    if (!issue || !c.body.trim()) continue
+    if (!c.body.trim() || !c.issue) continue
+    const kept = archivedByLinear.get(c.issue.id)
+    if (kept && !pathOfIssue.has(c.issue.id)) {
+      // a comment written in Linear after the issue was archived here joins it in the archive
+      if (kept.comments.some((k) => (k as { linearId?: string }).linearId === c.id)) continue
+      const record = archivedWithNew.get(kept.id) ?? { ...kept, comments: [...kept.comments] }
+      const author = login(c.user)
+      const body = rewriteLinks(c.body, refs).replace(/\s+$/, '')
+      record.comments.push({
+        id: newId(),
+        issue: kept.id,
+        author: author ?? ws.me,
+        createdAt: c.createdAt,
+        body: author ? body : `*From Linear: ${c.user?.name ?? 'someone'}*\n\n${body}`,
+        linearId: c.id,
+      } as Comment)
+      archivedWithNew.set(kept.id, record)
+      counts.comments++
+      continue
+    }
+    const issue = pathOfIssue.get(c.issue.id)
+    if (!issue) continue
     const author = login(c.user)
     const old = commentsByLinear.get(c.id)
     const body = rewriteLinks(c.body, refs).replace(/\s+$/, '')
@@ -463,8 +487,9 @@ export function buildImport(data: LinearData, choices: ImportChoices, ws: Existi
     byFile.set(path, [...(byFile.get(path) ?? []), a])
   }
   toArchive.forEach(into)
+  archivedWithNew.forEach(into)
   const touched = new Set(byFile.keys())
-  for (const a of archived) if (touched.has(paths.archive(a.team, archiveMonth(a, a.archivedAt)))) into(a)
+  for (const a of archived) if (!archivedWithNew.has(a.id) && touched.has(paths.archive(a.team, archiveMonth(a, a.archivedAt)))) into(a)
   for (const [path, records] of byFile) files.set(path, archiveToFile(records))
 
   // views: the chosen teams' and the whole workspace's, with the filters that can come over

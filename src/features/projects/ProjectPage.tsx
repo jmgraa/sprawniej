@@ -27,6 +27,8 @@ export function ProjectPage() {
   useCrumbs(project ? [{ label: 'Projects', href: '/projects' }, { label: `${project.emoji} ${project.name}` }] : [])
   if (!project) return <NotFound />
   const { done, total } = projectProgress(project.id, issues)
+  // every issue in it, canceled ones too (progress leaves those out)
+  const inProject = Object.values(issues).filter((i) => i.project === project.id).length
   const pct = total ? Math.round((done / total) * 100) : 0
 
   return (
@@ -94,7 +96,7 @@ export function ProjectPage() {
           toast(`Deleted the project ${project.emoji} ${project.name}`)
         }}
       >
-        The project goes away for everyone. Its {total === 1 ? 'issue stays' : `${total} issues stay`}, just without a project.
+        The project goes away for everyone. {inProject === 0 ? 'It has no issues.' : <>Its {inProject === 1 ? 'issue stays' : `${inProject} issues stay`}, just without a project.</>}
       </ConfirmDialog>
     </>
   )

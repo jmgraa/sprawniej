@@ -26,6 +26,7 @@ import {
   isOffline,
   moveBranch,
   NotFastForward,
+  plainError,
   type Author,
   type FileVersion,
   type RepoRef,
@@ -118,24 +119,34 @@ export class Workspace {
    * Open a workspace. The leading tab shows the browser copy at once (downloading it first if there is none).
    * Any other tab asks the leader for what it has.
    */
-  static async open(repo: RepoRef, token: string, me: Person): Promise<Workspace> {
+  static async open(repo: RepoRef, token: string, me: Person, signal?: AbortSignal): Promise<Workspace> {
     const ws = new Workspace(repo, token, me)
+    // given up on (the screen went away) before it finished opening: let go of the lock and stop
+    signal?.addEventListener('abort', () => ws.close())
     resetProjection()
     useData.setState({ ...EMPTY, me })
     useSync.setState({ state: 'loading', pending: 0, detail: undefined, progress: undefined, synced: false })
-    const leads = await ws.tabs.lead(() => void ws.takeOver())
-    if (leads) await ws.lead()
-    else await ws.follow()
+    try {
+      const leads = await ws.tabs.lead(() => void ws.takeOver())
+      if (leads) await ws.lead()
+      else await ws.follow()
+    } catch (e) {
+      // a half-opened leader would keep the lock and leave every later try waiting for it
+      ws.close()
+      throw e
+    }
     return ws
   }
 
   /** load the browser copy and start talking to GitHub. `shown` = what this tab shows already (taking over). */
   private async lead(shown?: Map<string, string>) {
-    this.leader = true
     const snap = await this.local.load()
     this.base = snap.base
     this.pending = snap.pending
     this.messages = snap.messages
+    // only now: a change made while the browser copy was loading went the follower's way (unconfirmed), and is
+    // taken in below instead of landing in a `pending` that the snapshot just replaced
+    this.leader = true
     if (snap.meta) this.meta = snap.meta
     else await this.lock(() => this.download())
     if (this.closed) return
@@ -173,9 +184,9 @@ export class Workspace {
   private async takeOver() {
     if (this.closed) return
     this.stopPolling()
-    const shown = this.view
+    // the follower's view stays in use until lead() has loaded, for changes made meanwhile
+    await this.lead(new Map(this.view))
     this.view = new Map()
-    await this.lead(shown)
     this.ready()
   }
 
@@ -372,6 +383,8 @@ export class Workspace {
       this.lastSync = Date.now()
       try {
         if (!navigator.onLine) throw new TypeError('offline')
+        // back online (or trying again) with changes waiting: say so while they go
+        if (this.pending.size && useSync.getState().state !== 'saving') useSync.setState({ state: 'saving', detail: undefined })
         await this.pull()
         await this.save()
         this.retryDelay = 5_000
@@ -390,7 +403,14 @@ export class Workspace {
     }
     if (isOffline(e)) {
       useSync.setState({ state: 'offline', pending: this.pending.size, detail: undefined })
-      return // the 'online' event wakes us up
+      // the 'online' event wakes us up; a request that failed while the browser thinks it's online (a hiccup) won't
+      // get one, so changes still waiting are tried again on their own, even in a hidden tab
+      if (navigator.onLine && this.pending.size) {
+        clearTimeout(this.retryTimer)
+        this.retryTimer = setTimeout(() => void this.syncNow(), this.retryDelay)
+        this.retryDelay = Math.min(this.retryDelay * 2, 120_000)
+      }
+      return
     }
     if (e instanceof GitHubError && e.retryAt) {
       // not a failure: GitHub wants fewer saves for a while. Changes are safe here; we save again after the wait.
@@ -402,7 +422,9 @@ export class Workspace {
       return
     }
     console.error('Sprawniej sync', e)
-    useSync.setState({ state: 'error', pending: this.pending.size, detail: (e as Error).message })
+    // why, in a few words (the chip already says we keep trying)
+    const why = e instanceof GitHubError && e.status >= 500 ? 'GitHub is having trouble right now.' : plainError(e).replace(/ Try again.*$/, '')
+    useSync.setState({ state: 'error', pending: this.pending.size, detail: why })
     this.retryTimer = setTimeout(() => void this.syncNow(), this.retryDelay)
     this.retryDelay = Math.min(this.retryDelay * 2, 120_000)
   }
@@ -460,8 +482,10 @@ export class Workspace {
   private async pull() {
     const head = await getHead(this.token, this.repo, this.meta.branch, this.etag)
     if (head.unchanged) return
-    this.etag = head.etag
-    if (!head.sha || head.sha === this.meta.head) return
+    if (!head.sha || head.sha === this.meta.head) {
+      this.etag = head.etag
+      return
+    }
 
     const commit = await getCommit(this.token, this.repo, head.sha)
     // which files changed, and their new blob ids (null = removed)
@@ -501,18 +525,33 @@ export class Workspace {
       else this.base.set(p, t)
     }
     this.meta = { ...this.meta, head: head.sha, tree: commit.tree.sha }
+    // only now: had anything above failed, the next check must not be told "nothing new" and skip these changes
+    this.etag = head.etag
 
     // two new issues with the same number: ours (not on GitHub yet) moves up
-    for (const r of renumber(this.base, this.pending)) {
+    const moved = renumber(this.base, this.pending)
+    for (const r of moved) {
       this.pending.set(r.path, r.text)
       void this.local.putPending(r.path, r.text)
       shown.set(r.path, r.text)
       toast(`${r.team}-${r.from} is now ${r.team}-${r.to}`, { description: 'A teammate created an issue with the same number at the same time.' })
     }
+    if (moved.length) {
+      // the waiting save's description says the new numbers (all at once: WEB-5 → 7 mustn't then become 8)
+      const to = new Map(moved.map((r) => [`${r.team}-${r.from}`, `${r.team}-${r.to}`]))
+      const ref = new RegExp(`\\b(${[...to.keys()].join('|')})\\b`, 'g')
+      this.messages = this.messages.map((m) => m.replace(ref, (x) => to.get(x)!))
+      void this.local.setMessages(this.messages)
+    }
 
     // show the merged result before anything else can run, so your next edit starts from it
     applyFiles(shown, this.me.login)
     this.tabs.post({ t: 'files', files: [...shown] })
+    // you were looking at your issue under its old number, which is now the teammate's: follow yours
+    for (const r of moved) {
+      const old = new RegExp(`^#/issue/${r.team}-${r.from}(?=$|[/?])`, 'i')
+      if (old.test(location.hash)) location.replace(location.hash.replace(old, `#/issue/${r.team}-${r.to}`))
+    }
     await this.local.putBase(baseUpdate)
     await this.local.setMeta(this.meta)
     // the same lines rewritten by both: ours is kept, theirs stays in the history. Nobody is asked to choose.

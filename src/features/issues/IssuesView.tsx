@@ -12,7 +12,7 @@ import { useDisplay } from '@/data/displays'
 import { groupIssues, inTab, matches } from '@/data/select'
 import { useData } from '@/data/store'
 import type { Display, Filters } from '@/model/schema'
-import type { IssueTab } from '@/model/status'
+import { STATUSES, TAB_GROUPS, type IssueTab } from '@/model/status'
 import { Button } from '@/ui/button'
 import { NewViewDialog } from '@/features/views/NewViewDialog'
 import { DisplayOptions } from './DisplayOptions'
@@ -155,10 +155,17 @@ export function IssuesView({ page, filters, tab = 'all', baseDisplay, left, head
         <NewViewDialog
           open
           onOpenChange={(o) => !o && setSaving(false)}
-          preset={{ team: viewScope ?? null, filters: { ...filters, teams: undefined, ...extra }, display }}
+          preset={{ team: viewScope ?? null, filters: withTab({ ...filters, teams: undefined, ...extra }, tab), display }}
           onCreated={() => setOwnFilters({})}
         />
       )}
     </div>
   )
+}
+
+/** a view has no tabs: the tab you were on (Active, Backlog) becomes a status filter, so the view shows the same issues */
+function withTab(f: Filters, tab: IssueTab): Filters {
+  if (tab === 'all') return f
+  const inTabNow = STATUSES.filter((st) => TAB_GROUPS[tab].includes(st.group)).map((st) => st.id)
+  return { ...f, statuses: f.statuses?.length ? f.statuses.filter((st) => inTabNow.includes(st)) : inTabNow }
 }

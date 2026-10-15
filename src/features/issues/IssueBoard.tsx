@@ -134,7 +134,7 @@ function HiddenColumn({ group, onAdd }: { group: Group; onAdd?: (group: Group) =
       <GroupIcon group={group} />
       <span className="truncate">{group.title}</span>
       {onAdd && !group.outside && (
-        <button type="button" onClick={() => onAdd(group)} className={cn(iconButton, 'ml-auto opacity-0 group-hover:opacity-100 focus-visible:opacity-100')} aria-label={`New issue in ${group.title}`}>
+        <button type="button" onClick={() => onAdd(group)} className={cn(iconButton, 'ml-auto [@media(hover:hover)]:opacity-0 group-hover:opacity-100 focus-visible:opacity-100')} aria-label={`New issue in ${group.title}`}>
           <Plus className="size-4" />
         </button>
       )}

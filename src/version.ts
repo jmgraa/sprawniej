@@ -1,11 +1,11 @@
 /**
- * The app's version and its changelog: one list, used by "What's new" in the app and by
- * `scripts/changelog.ts` (which writes CHANGELOG.md from it). Newest release first.
+ * The app's version and its changelog: one list, which `scripts/changelog.ts` turns into CHANGELOG.md.
+ * Newest release first. (The app doesn't show it anywhere yet.)
  *
  * Numbering (see CLAUDE.md): MAJOR.MINOR.PATCH. Major = the repo format or the way you work changes,
  * minor = a new feature, patch = fixes and polish. Notes are written for the people using Sprawniej.
  */
-export const APP_VERSION = '1.5.0'
+export const APP_VERSION = '1.6.0'
 
 export interface Release {
   version: string
@@ -18,6 +18,28 @@ export interface Release {
 }
 
 export const CHANGELOG: Release[] = [
+  {
+    version: '1.6.0',
+    date: '2026-10-15',
+    title: 'Safer teamwork',
+    notes: [
+      'A teammate’s change to a title or description is no longer undone when you leave the page, and their edits join the text you’re typing',
+      'Saving keeps going after a bad connection or a slow answer from GitHub, and teammates’ changes keep arriving',
+      'Two issues made at the same moment no longer push your other new issues to different numbers, and an open issue follows its new number',
+      'An issue that moved to another team still opens from links to its old number',
+      'When one person edits an issue another deletes, its comments come back with it',
+      'Every Sign out checks for unsaved changes first, in all your workspaces',
+      'Restoring an issue brings back the sub-issues archived with it',
+      'Search finds an archived issue by its exact number first',
+      'New issues made on the Backlog tab start in Backlog, and a new issue you closed by accident comes back next time',
+      'Text written in Markdown is formatted when you paste it',
+      'The Linear import also brings issues Linear has archived, keeps numbers unique on later imports, and adds new comments to archived issues',
+      'Saving a view from the Active or Backlog tab keeps showing the same issues',
+      'On phones, delete and ⋯ buttons are always visible',
+      'If part of the app fails to load, you get a Reload button instead of a blank page',
+      'Smaller fixes: duplicate label names, the tour covering the new issue dialog, initials for names with emoji, and some wording',
+    ],
+  },
   {
     version: '1.5.0',
     date: '2026-10-09',

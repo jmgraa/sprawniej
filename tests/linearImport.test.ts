@@ -236,6 +236,16 @@ describe('building the import', () => {
     expect([...again.files.keys()].some((p) => p.includes('/archive/') || p.includes(archive[Object.keys(archive)[0]].id))).toBe(false)
     // the sub-issue's parent link still points at the same issue
     expect(Object.values(read(again.files).issues).find((i) => i.title === 'Charts are slow')?.id).toBe(Object.values(ws3.issues).find((i) => i.title === 'Charts are slow')?.id)
+
+    // a comment written in Linear later joins the archived issue, once
+    const withComment = { ...data, comments: [...data.comments, { id: 'c-late', body: 'Still broken?', createdAt: '2026-10-01T00:00:00.000Z', user: { id: 'u-bob', name: 'Bob Stone' }, issue: { id: 'i-2' } }] }
+    const third = buildImport(withComment, choices, { ...ws3, me: 'mikolaj', archive }, ids(), '2026-10-09T00:00:00.000Z')
+    const file = third.files.get('teams/ENG/archive/2026-02.jsonl')!
+    const records = (parseFile('teams/ENG/archive/2026-02.jsonl', file) as { value: ArchivedIssue[] }).value
+    expect(records[0].comments.map((c) => [c.author, c.body])).toEqual([['bstone', 'Still broken?']])
+    const archive2 = Object.fromEntries(records.map((a) => [a.id, a]))
+    const fourth = buildImport(withComment, choices, { ...ws3, me: 'mikolaj', archive: archive2 }, ids(), '2026-10-10T00:00:00.000Z')
+    expect([...fourth.files.keys()].some((p) => p.includes('/archive/'))).toBe(false)
   })
 
   test('into a team that already has issues: clashing numbers move up', () => {
@@ -245,6 +255,26 @@ describe('building the import', () => {
     expect(r2.counts.teams).toBe(0)
     expect(r2.renumbered).toEqual([{ from: 'ENG-2', to: 'ENG-4' }])
   })
+})
+
+test('a second import never gives a new issue a number an earlier import already used', () => {
+  const native = (n: number): Issue => ({ id: `mine${n}`, team: 'ENG', number: n, title: `Made here ${n}`, description: '', status: 'todo', priority: 0, assignee: null, labels: [], project: null, parent: null, sortOrder: `a${n}`, createdBy: 'mikolaj', createdAt: '', updatedAt: '' })
+  const existing = { ...empty(), teams: { ENG: { key: 'ENG', name: 'Eng', emoji: '🛠️', members: [], createdAt: '' } }, issues: { mine1: native(1), mine2: native(2), mine3: native(3) } }
+  const first = buildImport(data, choices, existing, ids(), 'now')
+  const after = read(first.files)
+  const ws2 = { ...existing, teams: { ...existing.teams, ...after.teams }, issues: { ...existing.issues, ...after.issues }, labels: after.labels, projects: after.projects }
+  const more = { ...data, issues: [...data.issues, { ...data.issues[2], id: 'i-4', number: 4, title: 'Brand new' }, { ...data.issues[2], id: 'i-5', number: 5, title: 'Newer still' }] }
+  const second = buildImport(more, choices, ws2, ids(), 'later')
+  const final = { ...ws2.issues, ...read(second.files).issues }
+  const eng = Object.values(final).filter((i) => i.team === 'ENG').map((i) => i.number)
+  expect(new Set(eng).size).toBe(eng.length)
+})
+
+test('an import never hands out the number of an issue deleted here', () => {
+  const existing = { ...empty(), teams: { ENG: { key: 'ENG', name: 'Eng', emoji: '🛠️', members: [], createdAt: '', lastNumber: 2 } } }
+  const r = buildImport(data, choices, existing, ids(), 'now')
+  const numbers = Object.values(read(r.files).issues).filter((i) => i.team === 'ENG').map((i) => i.number).sort()
+  expect(numbers.some((n) => n <= 2)).toBe(false)
 })
 
 test('a Linear team that joins a team here is remembered', () => {

@@ -41,7 +41,7 @@ function ViewRow({ view, owner }: { view: View; owner?: Person }) {
       </span>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon-sm" aria-label={`More actions for ${view.name}`} className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100">
+          <Button variant="ghost" size="icon-sm" aria-label={`More actions for ${view.name}`} className="[@media(hover:hover)]:opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100">
             <MoreHorizontal />
           </Button>
         </DropdownMenuTrigger>

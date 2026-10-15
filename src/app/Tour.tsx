@@ -17,8 +17,10 @@ const STEPS = [
 
 const CARD = 320
 
-function useRect(anchor: string | undefined): DOMRect | null {
+/** where the tip's thing is on screen, and whether a dialog covers the page right now (the tip waits behind it) */
+function useRect(anchor: string | undefined): { rect: DOMRect | null; covered: boolean } {
   const [rect, setRect] = useState<DOMRect | null>(null)
+  const [covered, setCovered] = useState(false)
   useEffect(() => {
     if (!anchor) return
     let frame = 0
@@ -26,19 +28,20 @@ function useRect(anchor: string | undefined): DOMRect | null {
       const el = [...document.querySelectorAll(`[data-tour="${anchor}"]`)].find((e) => e.getClientRects().length > 0)
       const r = el?.getBoundingClientRect() ?? null
       setRect((old) => (old && r && old.x === r.x && old.y === r.y && old.width === r.width && old.height === r.height ? old : r))
+      setCovered(!!document.querySelector('[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]'))
       frame = requestAnimationFrame(tick)
     }
     tick()
     return () => cancelAnimationFrame(frame)
   }, [anchor])
-  return rect
+  return { rect, covered }
 }
 
 export function Tour() {
   const step = useTour((s) => s.step)
   const [location] = useLocation()
   const tip = step === null ? undefined : STEPS[step]
-  const rect = useRect(tip?.anchor)
+  const { rect, covered } = useRect(tip?.anchor)
 
   // the first time someone opens a team's issues (after picking their teams, if they're asked)
   const joining = useJoinTeams((s) => s.open)
@@ -49,16 +52,18 @@ export function Tour() {
   }, [location, joining])
 
   useEffect(() => {
-    if (step === null) return
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && endTour()
+    if (step === null || covered) return
+    // Esc in a dialog (a new issue) closes that, not the tour
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !e.defaultPrevented && endTour()
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [step])
+  }, [step, covered])
 
-  if (step === null || !tip) return null
+  if (step === null || !tip || covered) return null
   const last = step === STEPS.length - 1
   // next to the thing: below it when there's room, else above; a big area gets the tip inside its top
-  let style: React.CSSProperties = { left: '50%', top: '30%', transform: 'translateX(-50%)' }
+  // nothing to point at (no issues yet): out of the way, at the bottom
+  let style: React.CSSProperties = { left: '50%', bottom: 24, transform: 'translateX(-50%)' }
   if (rect) {
     const big = rect.height > 200
     const left = Math.min(Math.max(12, rect.left + rect.width / 2 - CARD / 2), window.innerWidth - CARD - 12)
