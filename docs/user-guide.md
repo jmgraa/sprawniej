@@ -36,6 +36,12 @@ There is no Save button. Whatever you type or change is kept right away. In the 
 
 Your teammates' changes show up on their own, too.
 
+### New versions
+
+When a new version of Sprawniej is out, a small note says so, and **Update available** appears in the top bar next
+to **Saved**. Nothing changes until you choose: press it when it suits you (whatever isn't saved yet is saved first,
+then the page reloads), or just carry on, and the new version loads the next time you open Sprawniej.
+
 ## Issues
 
 An **issue** is one piece of work: a task, a bug, an idea. Each has a short ID like `ENG-12` (team + number).

@@ -3,6 +3,12 @@
 Versions are `MAJOR.MINOR.PATCH`: major = the repo format or the way you work changes, minor = a new feature,
 patch = fixes and polish. Written from `src/version.ts` by `bun scripts/changelog.ts`.
 
+## 1.7.0: Update when it suits you
+*2026-10-15*
+
+- When a new version of Sprawniej is out, a small note says so, and Update available appears next to Saved
+- Press it when it suits you: anything not saved yet is saved first, then the page reloads. Or carry on, and the new version loads next time you open Sprawniej
+
 ## 1.6.0: Safer teamwork
 *2026-10-15*
 
