@@ -7,6 +7,7 @@ import { useNarrow } from '@/lib/useNarrow'
 import { useChrome } from './chrome'
 import { openPalette } from './palette'
 import { SaveStatus } from './SaveStatus'
+import { UpdateButton } from './UpdateButton'
 
 export function TopBar() {
   const crumbs = useChrome((s) => s.crumbs)
@@ -37,6 +38,7 @@ export function TopBar() {
         ))}
       </nav>
       <div className="ml-auto flex shrink-0 items-center gap-2 md:gap-3">
+        <UpdateButton />
         <SaveStatus />
         <button
           type="button"

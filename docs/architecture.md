@@ -254,3 +254,13 @@ React 19, Vite, Tailwind v4, shadcn/ui (Radix), lucide icons, zustand, zod, idb-
 (description merges), sonner (messages),
 TipTap (descriptions and comments, stored as Markdown), dnd-kit (drag-n-drop), frimousse (emoji picker),
 cmdk (the ⌘K palette), wouter (routes).
+
+## New versions
+
+Sprawniej is a PWA: a service worker keeps the app's files in the browser, so it opens without a network. A release
+on GitHub Pages is downloaded in the background, then waits; on its own it would only take over once every Sprawniej
+tab is closed. `src/app/updates.ts` asks for a new version every minute and whenever the tab comes back, and when one
+is waiting shows a small toast once and an **Update available** button in the top bar (`UpdateButton.tsx`). Nothing
+switches by itself. Updating sends whatever is still waiting to be saved, then lets the new version take over and
+reloads. Another tab still running the old version recovers through the error screen (`Crash.tsx`), which reloads
+once when a part of the old version can't be found any more.
