@@ -54,6 +54,8 @@ When a new version of Sprawniej is out, a small note says so, and **Update avail
 to **Saved**. Nothing changes until you choose: press it when it suits you (whatever isn't saved yet is saved first,
 then the page reloads), or just carry on, and the new version loads the next time you open Sprawniej.
 
+To see what changed, open the menu under your name and choose **What's new**: every version, newest first.
+
 ## Issues
 
 An **issue** is one piece of work: a task, a bug, an idea. Each has a short ID like `ENG-12` (team + number).

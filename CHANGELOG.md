@@ -3,6 +3,11 @@
 Versions are `MAJOR.MINOR.PATCH`: major = the repo format or the way you work changes, minor = a new feature,
 patch = fixes and polish. Written from `src/version.ts` by `bun scripts/changelog.ts`.
 
+## 1.8.5: What’s new
+*2026-10-15*
+
+- See what changed in each version: What’s new in the menu under your name, or type “what’s new” in ⌘K
+
 ## 1.8.4: Search without Polish letters
 *2026-10-15*
 
