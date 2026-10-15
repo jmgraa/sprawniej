@@ -34,6 +34,8 @@ export const personSchema = z
     githubId: z.number().int(),
     name: z.string(),
     avatarUrl: z.string(),
+    /** they typed their name in Sprawniej (Settings › Your account): their GitHub name doesn't replace it */
+    nameSetHere: z.boolean().optional(),
   })
   .passthrough()
 export type Person = z.infer<typeof personSchema>

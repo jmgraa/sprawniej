@@ -45,9 +45,13 @@ second import updates them instead of making copies (docs/linear-import.md).
 { "login": "mikolajpochec", "githubId": 123456, "name": "Mikołaj Pocheć", "avatarUrl": "https://avatars.githubusercontent.com/u/123456" }
 ```
 
-Usually written by that person when they first open the workspace. Linking someone from Linear to an account
-(below) can write it before they do, from their GitHub profile; their own profile replaces the name and picture
-when they open the workspace, and keeps the rest.
+Usually written by that person when they first open the workspace, and kept in step with their GitHub name and
+picture each time they open it. Linking someone from Linear to an account (below) can write it before they do, from
+their GitHub profile; their own profile replaces the name and picture when they open the workspace, and keeps the
+rest. A name the file already has stays when GitHub has none.
+
+`nameSetHere` (optional): they typed their name in Sprawniej (Settings › Your account), so their GitHub name
+doesn't replace it.
 
 `linearIds` (optional): the Linear people this account was linked to, so a later import matches them by itself.
 

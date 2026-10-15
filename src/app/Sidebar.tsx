@@ -78,7 +78,8 @@ function TeamGroup({ teamKey }: { teamKey: string }) {
 }
 
 function Me() {
-  const me = useData((s) => s.me)
+  // your people/ file: it has the name you go by here (it may differ from GitHub's)
+  const me = useData((s) => (s.me ? (s.people[s.me.login] ?? s.me) : null))
   const workspace = useData((s) => s.workspace)
   if (!me) return null
   return (
