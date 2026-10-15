@@ -18,6 +18,7 @@ import { useSession } from '@/session'
 import { Button } from '@/ui/button'
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/ui/command'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@/ui/dialog'
+import { plainFilter } from '@/lib/fuzzy'
 import { cn } from '@/lib/utils'
 import { useUnlinked, workOf } from './unlinked'
 
@@ -121,7 +122,7 @@ export function LinkPersonDialog(props: Props) {
             ? 'If they used Linear before, pick who they were there. Their issues, comments and views move to their account.'
             : 'Pick their account. Their issues, comments and views move to it. Not here yet? Invite them first, then link them.'}
         </DialogDescription>
-        <Command className="rounded-lg border" value={active ?? chosen ?? ''} onValueChange={setActive}>
+        <Command className="rounded-lg border" value={active ?? chosen ?? ''} onValueChange={setActive} filter={plainFilter}>
           <CommandInput placeholder={props.from === 'invite' ? 'Search people from Linear…' : 'Search people…'} />
           <CommandList className="max-h-72">
             <CommandEmpty>Nobody by that name.</CommandEmpty>

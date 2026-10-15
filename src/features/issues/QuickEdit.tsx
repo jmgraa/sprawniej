@@ -9,6 +9,7 @@ import { usePalette, type QuickField } from '@/app/palette'
 import type { PickerItem } from '@/components/Picker'
 import { updateIssue } from '@/data/actions'
 import { issueRef, useData } from '@/data/store'
+import { plainFilter } from '@/lib/fuzzy'
 import { cn } from '@/lib/utils'
 import type { Issue } from '@/model/schema'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/ui/command'
@@ -43,7 +44,7 @@ function Menu({ issues, field }: { issues: Issue[]; field: QuickField }) {
   }
 
   return (
-    <Command>
+    <Command filter={plainFilter}>
       <CommandInput placeholder={`${TITLES[field]}…`} />
       <CommandList>
         <CommandEmpty>Nothing found.</CommandEmpty>

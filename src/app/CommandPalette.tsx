@@ -11,6 +11,7 @@ import { searchIssues } from '@/data/search'
 import { findByRef, issueRef, useData } from '@/data/store'
 import { openComposer } from '@/features/issues/composer'
 import { StatusIcon } from '@/features/issues/icons'
+import { plain } from '@/lib/plain'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandShortcut } from '@/ui/command'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/ui/dialog'
 import { useChrome } from './chrome'
@@ -26,7 +27,7 @@ interface Entry {
   shortcut?: string
 }
 
-const matches = (e: Entry, q: string) => q.split(/\s+/).every((w) => `${e.label} ${e.words ?? ''}`.toLowerCase().includes(w))
+const matches = (e: Entry, q: string) => plain(q).split(/\s+/).every((w) => plain(`${e.label} ${e.words ?? ''}`).includes(w))
 
 function Palette() {
   const [, navigate] = useLocation()

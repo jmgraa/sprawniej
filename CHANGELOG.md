@@ -3,6 +3,11 @@
 Versions are `MAJOR.MINOR.PATCH`: major = the repo format or the way you work changes, minor = a new feature,
 patch = fixes and polish. Written from `src/version.ts` by `bun scripts/changelog.ts`.
 
+## 1.8.4: Search without Polish letters
+*2026-10-15*
+
+- Every search finds Polish names and titles without typing ą, ę, ł or ż: “lukasz” finds Łukasz, “zazolc” finds “Zażółć”. This covers the assignee and label menus, @mentions, ⌘K and the archive
+
 ## 1.8.3: Pages for long lists
 *2026-10-15*
 
