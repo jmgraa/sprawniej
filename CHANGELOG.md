@@ -3,6 +3,18 @@
 Versions are `MAJOR.MINOR.PATCH`: major = the repo format or the way you work changes, minor = a new feature,
 patch = fixes and polish. Written from `src/version.ts` by `bun scripts/changelog.ts`.
 
+## 1.10.0: Team workflows
+*2026-10-19*
+
+- Each team has its own workflow in Settings › Statuses: rename, recolour, describe and drag statuses into order, add your own, or take one out of a team
+- Pick where a team’s new issues start (its default status)
+- Triage: issues from people outside a team wait on a Triage tab until someone accepts, declines, marks them as a duplicate or snoozes them
+- Team automations: close issues nobody touched for months, close a parent with its sub-issues, and the other way round
+- Right-click an issue for a menu: open it, copy its number or link, change its status, priority, assignee, labels or estimate, archive or delete it
+- Settings has a page for each part, with a menu on the left
+- The Linear import brings each team’s workflow and settings, and what each status means
+- Duplicate has an icon of its own, and later steps in progress fill more of their circle
+
 ## 1.9.0: Your own statuses
 *2026-10-19*
 
