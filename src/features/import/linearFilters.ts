@@ -11,13 +11,17 @@
  *           { labels: { and: [{ or: [{ name: { eq: 'AI' } }, { parent: { name: { eq: 'AI' } } }] }] } }] }
  */
 import type { Filters } from '@/model/schema'
-import { STATUSES, type StatusGroup, type StatusId } from '@/model/status'
-import { mapStatus } from './linearMap'
+import type { Status, StatusId } from '@/model/status'
+import { STATE_GROUPS } from './linearMap'
 import type { LLabel, LState } from './linearApi'
 
 export interface FilterContext {
   /** workflow states by id */
   states: Map<string, LState>
+  /** a Linear state → its status here */
+  status: (state: LState | { name: string; type: string }) => StatusId
+  /** every status here, the ones this import brings included */
+  statuses: Status[]
   /** a Linear user → a login here; undefined = nobody here (unmatched) */
   person: (linearUserId: string) => string | undefined
   /** every Linear label (not just the ones issues use) */
@@ -55,7 +59,6 @@ function allowed(cmp: unknown): unknown[] | null {
 }
 
 /** Linear's state types → every status here in that group */
-const GROUPS: Record<string, StatusGroup> = { triage: 'backlog', backlog: 'backlog', unstarted: 'unstarted', started: 'started', completed: 'completed', canceled: 'canceled' }
 
 const same = (a: unknown[], b: unknown[]) => a.length === b.length && a.every((x) => b.includes(x))
 
@@ -155,14 +158,14 @@ export function mapViewFilter(filterData: unknown, ctx: FilterContext): MappedFi
         'statuses',
         f,
         byProp({
-          id: (vals) => convert(vals, (v) => (typeof v === 'string' && ctx.states.get(v) ? mapStatus(ctx.states.get(v)!) : undefined)),
+          id: (vals) => convert(vals, (v) => (typeof v === 'string' && ctx.states.get(v) ? ctx.status(ctx.states.get(v)!) : undefined)),
           name: (vals) =>
             convert(vals, (v) => {
               if (typeof v !== 'string') return undefined
               const state = [...ctx.states.values()].find((s) => s.name.toLowerCase() === v.toLowerCase())
-              return mapStatus(state ?? { name: v, type: '' })
+              return ctx.status(state ?? { name: v, type: '' })
             }),
-          type: (vals) => convert<StatusId>(vals, (v) => (typeof v === 'string' && GROUPS[v] ? STATUSES.filter((s) => s.group === GROUPS[v]).map((s) => s.id) : undefined)),
+          type: (vals) => convert<StatusId>(vals, (v) => (typeof v === 'string' && STATE_GROUPS[v] ? ctx.statuses.filter((s) => s.group === STATE_GROUPS[v]).map((s) => s.id) : undefined)),
         }),
       ),
     assignee: (f) => field('assignees', f, byProp({ id: personIds }, noneProp)),

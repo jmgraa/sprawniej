@@ -3,13 +3,13 @@ import { Box } from 'lucide-react'
 import { PersonAvatar } from '@/components/Avatar'
 import type { Group } from '@/data/select'
 import { useData } from '@/data/store'
-import { STATUS_IDS, type Priority, type StatusId } from '@/model/status'
+import { isStatus, type Priority } from '@/model/status'
 import { PriorityIcon, StatusIcon } from './icons'
 
 export function GroupIcon({ group }: { group: Group }) {
   const person = useData((s) => (typeof group.value === 'string' ? s.people[group.value] : undefined))
   const project = useData((s) => (typeof group.value === 'string' ? s.projects[group.value] : undefined))
-  if (typeof group.value === 'string' && (STATUS_IDS as readonly string[]).includes(group.value)) return <StatusIcon status={group.value as StatusId} />
+  if (typeof group.value === 'string' && isStatus(group.value)) return <StatusIcon status={group.value} />
   if (typeof group.value === 'number') return <PriorityIcon priority={group.value as Priority} />
   if (person) return <PersonAvatar person={person} />
   if (project) return <span className="text-sm leading-none">{project.emoji}</span>

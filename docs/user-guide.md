@@ -94,6 +94,10 @@ in any app. Nothing is ever really lost: every earlier version stays in the work
 | Canceled | We decided not to do it. |
 | Duplicate | Someone already reported the same thing. |
 
+A workspace can have statuses of its own on top of these, like **Blocked**: the Linear import brings each team's
+statuses over as they are. Each one is a kind of the statuses above (not started, in progress, finished, canceled), so
+it gets that kind's icon in its own colour and shows on the same tab. A team only offers the statuses it uses.
+
 ### Priority
 
 **Urgent** (orange), **High**, **Medium**, **Low** (fewer bars = lower), or no priority (three dashes).

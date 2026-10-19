@@ -196,7 +196,7 @@ the view's page changes the view for everyone. Two people changing different fil
 | Folder | What's inside |
 | --- | --- |
 | `src/app` | The frame (sidebar, top bar), routes, the save chip |
-| `src/model` | File schemas (zod) and the fixed statuses and priorities |
+| `src/model` | File schemas (zod), statuses (built-in and the workspace's own) and priorities |
 | `src/data` | The store, pure selectors (filter, group, sort), `actions.ts`, the save queue |
 | `src/github` | Every call to GitHub (REST and GraphQL), with errors in plain words |
 | `src/sync` | The browser copy, the save and pull loop, merging, renumbering, save pacing, the leading tab |

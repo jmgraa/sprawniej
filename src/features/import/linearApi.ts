@@ -57,7 +57,7 @@ export interface LIssue {
   updatedAt: string
   completedAt: string | null
   canceledAt: string | null
-  state: { name: string; type: string }
+  state: { id?: string; name: string; type: string }
   team: { id: string }
   assignee: { id: string } | null
   creator: { id: string } | null
@@ -87,11 +87,15 @@ export interface LView {
   owner: { id: string } | null
   createdAt: string
 }
-/** a workflow state, so a view's "status is In Review" can be read */
+/** a team's workflow state: becomes a status here (see mapStatus), and lets a view's "status is In Review" be read */
 export interface LState {
   id: string
   name: string
   type: string
+  color?: string
+  /** its place in its team's workflow */
+  position?: number
+  team?: { id: string } | null
 }
 
 export interface LinearData {
@@ -202,7 +206,7 @@ export async function readTeams(
     key,
     `query($after: String, $teams: [ID!]) { issues(first: 50, after: $after, includeArchived: true, filter: { team: { id: { in: $teams } } }) { nodes {
       id number title description priority sortOrder dueDate estimate createdAt updatedAt completedAt canceledAt trashed
-      state { name type } team { id } assignee { id } creator { id } project { id } parent { id } labels(first: 50) { nodes { id } } subscribers(first: ${SUBSCRIBERS_READ}) { nodes { id } }
+      state { id name type } team { id } assignee { id } creator { id } project { id } parent { id } labels(first: 50) { nodes { id } } subscribers(first: ${SUBSCRIBERS_READ}) { nodes { id } }
     } ${PAGE} } }`,
     { teams: teamIds },
     (x: { issues: Page<LIssue> }) => x.issues,
@@ -217,27 +221,32 @@ export async function readTeams(
     (x: { comments: Page<LComment> }) => x.comments,
     (n) => progress(`Reading comments… ${n.toLocaleString()} so far`),
   )
+  progress('Reading statuses…')
+  // every team's, not only the chosen ones: a workspace view can name another team's status
+  const states = await all<LState>(
+    key,
+    `query($after: String) { workflowStates(first: 100, after: $after) { nodes { id name type color position team { id } } ${PAGE} } }`,
+    {},
+    (x: { workflowStates: Page<LState> }) => x.workflowStates,
+  )
   progress('Reading views…')
   const extra = await readViews(key).catch((e: unknown) => {
     if (e instanceof LinearError && e.badKey) throw e
-    return { views: [], states: [], viewsFailed: true }
+    return { views: [], viewsFailed: true }
   })
   // archived issues come along (Linear archives finished work after a while); ones in Linear's trash don't
   const kept = issues.filter((i) => !i.trashed)
   const keptIds = new Set(kept.map((i) => i.id))
-  return { labels, projects, issues: kept, comments: comments.filter((c) => !c.issue || keptIds.has(c.issue.id)), ...extra }
+  return { labels, projects, issues: kept, comments: comments.filter((c) => !c.issue || keptIds.has(c.issue.id)), states, ...extra }
 }
 
-/** custom views, and the workflow states their filters name; views are a nice extra, so a failure here isn't fatal */
-async function readViews(key: string): Promise<{ views: LView[]; states: LState[] }> {
+/** custom views; they are a nice extra, so a failure here isn't fatal */
+async function readViews(key: string): Promise<{ views: LView[] }> {
   const views = await all<LView>(
     key,
     `query($after: String) { customViews(first: 50, after: $after) { nodes { id name description icon filterData shared team { id } owner { id } createdAt } ${PAGE} } }`,
     {},
     (x: { customViews: Page<LView> }) => x.customViews,
   )
-  const states = views.length
-    ? await all<LState>(key, `query($after: String) { workflowStates(first: 100, after: $after) { nodes { id name type } ${PAGE} } }`, {}, (x: { workflowStates: Page<LState> }) => x.workflowStates)
-    : []
-  return { views, states }
+  return { views }
 }

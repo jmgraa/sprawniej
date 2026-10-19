@@ -3,7 +3,8 @@
  * they never change it directly. All changes go through `actions.ts` (see CLAUDE.md, golden rules).
  */
 import { create } from 'zustand'
-import type { ArchivedIssue, Comment, InboxItem, Issue, Label, Person, Project, ReadState, Team, View, Workspace } from '@/model/schema'
+import type { ArchivedIssue, Comment, CustomStatus, InboxItem, Issue, Label, Person, Project, ReadState, Team, View, Workspace } from '@/model/schema'
+import { setCustomStatuses } from '@/model/status'
 
 export interface DataState {
   workspace: Workspace | null
@@ -11,6 +12,8 @@ export interface DataState {
   me: Person | null
   people: Record<string, Person>
   labels: Record<string, Label>
+  /** the workspace's own statuses (the built-in ones are in src/model/status.ts) */
+  statuses: Record<string, CustomStatus>
   teams: Record<string, Team>
   issues: Record<string, Issue>
   /** archived issues by id; empty until something needs them (loadArchive in project.ts) */
@@ -30,6 +33,7 @@ export const EMPTY: DataState = {
   me: null,
   people: {},
   labels: {},
+  statuses: {},
   teams: {},
   issues: {},
   archive: {},
@@ -42,6 +46,11 @@ export const EMPTY: DataState = {
 }
 
 export const useData = create<DataState>()(() => ({ ...EMPTY }))
+
+// statusOf and allStatuses read the workspace's statuses without the store; this keeps them in step (before screens redraw)
+useData.subscribe((s, prev) => {
+  if (s.statuses !== prev.statuses) setCustomStatuses(Object.values(s.statuses))
+})
 
 /** "ENG-12" */
 export const issueRef = (issue: Pick<Issue, 'team' | 'number'>) => `${issue.team}-${issue.number}`

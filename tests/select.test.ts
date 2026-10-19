@@ -6,6 +6,7 @@ import { findByRef, issueRef } from '@/data/store'
 import { DEFAULT_DISPLAY } from '@/data/displays'
 import type { Issue } from '@/model/schema'
 import { issueFieldsSchema } from '@/model/schema'
+import { allStatuses, isClosed, setCustomStatuses, statusOf } from '@/model/status'
 
 const data = sampleData()
 const issues = Object.values(data.issues)
@@ -63,6 +64,26 @@ describe('grouping', () => {
     const groups = groupIssues(issues, DEFAULT_DISPLAY, ctx, 'all')
     expect(groups.map((g) => g.key)).toEqual(['backlog', 'todo', 'in_progress', 'in_review', 'done', 'canceled', 'duplicate'])
     expect(groups.find((g) => g.key === 'duplicate')!.issues).toEqual([])
+  })
+  test('a workspace’s own statuses: after the built-in ones of their group, only for their teams', () => {
+    setCustomStatuses([
+      { id: 'st-blocked', name: 'Blocked', group: 'canceled', color: '#eb5757', position: 6, teams: ['ENG'] },
+      { id: 'st-qa', name: 'QA', group: 'started', color: '#f2994a', position: 2 },
+    ])
+    try {
+      const blocked = { ...issues.find((i) => i.team === 'ENG')!, status: 'st-blocked' }
+      const keys = groupIssues([blocked], DEFAULT_DISPLAY, ctx, 'all').map((g) => g.key)
+      expect(keys).toEqual(['backlog', 'todo', 'in_progress', 'in_review', 'st-qa', 'done', 'canceled', 'duplicate', 'st-blocked'])
+      expect(allStatuses('DES').map((s) => s.id)).not.toContain('st-blocked')
+      expect(isClosed('st-blocked')).toBe(true)
+      expect(inTab(blocked, 'active')).toBe(false)
+      // on a team's page, an issue that came from another team keeps a group for its status
+      expect(groupIssues([blocked], DEFAULT_DISPLAY, { ...ctx, team: 'DES' }, 'all').find((g) => g.key === 'st-blocked')?.issues).toHaveLength(1)
+    } finally {
+      setCustomStatuses([])
+    }
+    // a status whose file is gone still shows, by its id
+    expect(statusOf('gone')).toMatchObject({ id: 'gone', name: 'gone' })
   })
   test('showCompleted off hides closed groups and issues', () => {
     const groups = groupIssues(issues, { ...DEFAULT_DISPLAY, showCompleted: false }, ctx, 'all')

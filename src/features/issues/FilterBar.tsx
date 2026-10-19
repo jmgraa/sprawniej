@@ -12,7 +12,7 @@ import type { Filters } from '@/model/schema'
 import { Button } from '@/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/ui/dropdown-menu'
 import type { FilterKey } from './filters'
-import { priorityItems, statusItems, useLabelItems, usePeopleItems, useProjectItems } from './pickers'
+import { priorityItems, useLabelItems, usePeopleItems, useProjectItems, useStatusItems } from './pickers'
 
 const KINDS: { key: FilterKey; name: string; icon: ReactNode }[] = [
   { key: 'statuses', name: 'Status', icon: <CircleDot /> },
@@ -25,13 +25,14 @@ const KINDS: { key: FilterKey; name: string; icon: ReactNode }[] = [
 ]
 
 function useItems(): Record<FilterKey, PickerItem<unknown>[]> {
+  const statuses = useStatusItems()
   const people = usePeopleItems()
   const labels = useLabelItems()
   const projects = useProjectItems()
   const teams = useData(useShallow((s) => Object.values(s.teams)))
   return useMemo(
     () => ({
-      statuses: statusItems,
+      statuses,
       assignees: people,
       // anyone following the issue: who made it, is assigned, commented, was mentioned or subscribed
       subscribers: people.filter((p) => p.value !== null),
@@ -40,7 +41,7 @@ function useItems(): Record<FilterKey, PickerItem<unknown>[]> {
       projects,
       teams: teams.map((t) => ({ value: t.key, label: t.name, icon: <span className="w-4 text-center leading-none">{t.emoji}</span> })),
     }),
-    [people, labels, projects, teams],
+    [statuses, people, labels, projects, teams],
   )
 }
 

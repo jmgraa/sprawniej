@@ -157,6 +157,7 @@ export function sampleData(): DataState {
     me: people[0],
     people: byKey(people, (p) => p.login),
     labels: byKey(labels, (l) => l.id),
+    statuses: {},
     teams: byKey(teams, (t) => t.key),
     archive: {},
     archiveLoaded: false,

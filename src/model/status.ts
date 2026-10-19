@@ -1,20 +1,25 @@
 /**
- * Issue statuses and priorities. Fixed on purpose: one shared vocabulary for every team, and the import maps onto
- * them one to one. Each status belongs to a group; the groups decide
- * which issues the Active, Backlog and All tabs show.
+ * Issue statuses and priorities. Every team has the built-in statuses; a workspace can add its own on top
+ * (statuses/<id>.json, usually brought over by the Linear import, like "Blocked"). Each status belongs to a group;
+ * the groups decide its icon, its place in lists and which issues the Active, Backlog and All tabs show.
  */
+import type { CustomStatus } from './schema'
 
-export type StatusGroup = 'backlog' | 'unstarted' | 'started' | 'completed' | 'canceled'
+export const STATUS_GROUPS = ['backlog', 'unstarted', 'started', 'completed', 'canceled'] as const
+export type StatusGroup = (typeof STATUS_GROUPS)[number]
 
-export const STATUS_IDS = ['backlog', 'todo', 'in_progress', 'in_review', 'done', 'canceled', 'duplicate'] as const
-export type StatusId = (typeof STATUS_IDS)[number]
+export const BUILTIN_STATUS_IDS = ['backlog', 'todo', 'in_progress', 'in_review', 'done', 'canceled', 'duplicate'] as const
+/** a built-in status id, or the id of a workspace's own status */
+export type StatusId = string
 
 export interface Status {
   id: StatusId
   name: string
   group: StatusGroup
-  /** CSS colour (a theme variable) */
+  /** CSS colour (a theme variable, or a workspace status's own colour) */
   color: string
+  /** a workspace's own status: the teams that use it (missing = every team) */
+  teams?: string[]
 }
 
 export const STATUSES: Status[] = [
@@ -27,9 +32,48 @@ export const STATUSES: Status[] = [
   { id: 'duplicate', name: 'Duplicate', group: 'canceled', color: 'var(--status-canceled)' },
 ]
 
-const byId = new Map(STATUSES.map((s) => [s.id, s]))
-export const statusOf = (id: StatusId): Status => byId.get(id)!
+/**
+ * Built-in and workspace statuses in one list: by group, built-in ones first, then the workspace's own by position.
+ * Pure, so the import can use it on statuses it is about to write.
+ */
+export function workflow(custom: Iterable<CustomStatus>): Status[] {
+  const own = [...custom].sort((a, b) => (a.position ?? 0) - (b.position ?? 0) || a.name.localeCompare(b.name))
+  return STATUS_GROUPS.flatMap((g) => [
+    ...STATUSES.filter((s) => s.group === g),
+    ...own.filter((s) => s.group === g).map((s): Status => ({ id: s.id, name: s.name, group: s.group, color: s.color, ...(s.teams?.length && { teams: s.teams }) })),
+  ])
+}
 
+// the workspace's statuses, kept in step with the store (store.ts), so `statusOf` works anywhere
+let all = workflow([])
+let byId = new Map(all.map((s) => [s.id, s]))
+
+export function setCustomStatuses(custom: Iterable<CustomStatus>) {
+  all = workflow(custom)
+  byId = new Map(all.map((s) => [s.id, s]))
+}
+
+/** every status, in order; with a team, only the ones that team uses */
+export const allStatuses = (team?: string): Status[] => (team ? all.filter((s) => !s.teams || s.teams.includes(team)) : all)
+
+/** a status whose file is gone still shows, by its id, so nothing breaks */
+export type FindStatus = (id: StatusId) => Status
+
+export const statusOf = (id: StatusId): Status => byId.get(id) ?? { id, name: id, group: 'unstarted', color: 'var(--status-backlog)' }
+
+/**
+ * The built-in status that stands in for a workspace's own status in the files (`status: canceled` next to
+ * `customStatus: { id, as: canceled }`), so a version of the app from before workspace statuses can still read them
+ */
+export const STAND_IN: Record<StatusGroup, StatusId> = { backlog: 'backlog', unstarted: 'todo', started: 'in_progress', completed: 'done', canceled: 'canceled' }
+
+export const isBuiltIn = (id: StatusId): boolean => (BUILTIN_STATUS_IDS as readonly string[]).includes(id)
+
+/** a built-in status or one of the workspace's */
+export const isStatus = (id: string): boolean => byId.has(id)
+
+/** finished or canceled */
+export const isClosed = (id: StatusId): boolean => ['completed', 'canceled'].includes(statusOf(id).group)
 /** The tabs on a team's Issues page. */
 export type IssueTab = 'active' | 'backlog' | 'all'
 

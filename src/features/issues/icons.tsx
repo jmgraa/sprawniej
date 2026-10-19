@@ -3,33 +3,35 @@ import type { Priority, StatusId } from '@/model/status'
 import { statusOf } from '@/model/status'
 import { cn } from '@/lib/utils'
 
+/** how full a started status's circle is; a workspace's own started statuses are half full */
 const PIE: Partial<Record<StatusId, number>> = { in_progress: 0.5, in_review: 0.75 }
 
 export function StatusIcon({ status, className }: { status: StatusId; className?: string }) {
-  const color = statusOf(status).color
+  // the shape follows the status's group, so a status of the workspace's own looks like its kind
+  const { color, group, name } = statusOf(status)
   const box = cn('size-3.5 shrink-0', className)
-  if (status === 'done') {
+  if (group === 'completed') {
     return (
-      <svg viewBox="0 0 14 14" className={box} aria-label="Done">
+      <svg viewBox="0 0 14 14" className={box} aria-label={name}>
         <circle cx="7" cy="7" r="6" fill={color} />
         <path d="M4.3 7.2 6.2 9l3.5-3.8" fill="none" stroke="#18181b" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
     )
   }
-  if (status === 'canceled' || status === 'duplicate') {
+  if (group === 'canceled') {
     return (
-      <svg viewBox="0 0 14 14" className={box} aria-label={statusOf(status).name}>
+      <svg viewBox="0 0 14 14" className={box} aria-label={name}>
         <circle cx="7" cy="7" r="6" fill={color} />
         <path d="m5 5 4 4m0-4-4 4" stroke="#18181b" strokeWidth="1.5" strokeLinecap="round" />
       </svg>
     )
   }
-  const pie = PIE[status]
+  const pie = group === 'started' ? (PIE[status] ?? 0.5) : undefined
   // a circle of radius 1.75 with a 3.5-wide stroke paints a pie; dasharray sets how much of it
   const c = 2 * Math.PI * 1.75
   return (
-    <svg viewBox="0 0 14 14" className={box} aria-label={statusOf(status).name}>
-      <circle cx="7" cy="7" r="6" fill="none" stroke={color} strokeWidth="1.5" strokeDasharray={status === 'backlog' ? '1.4 1.74' : undefined} />
+    <svg viewBox="0 0 14 14" className={box} aria-label={name}>
+      <circle cx="7" cy="7" r="6" fill="none" stroke={color} strokeWidth="1.5" strokeDasharray={group === 'backlog' ? '1.4 1.74' : undefined} />
       {pie && <circle cx="7" cy="7" r="1.75" fill="none" stroke={color} strokeWidth="3.5" strokeDasharray={`${c * pie} ${c}`} transform="rotate(-90 7 7)" />}
     </svg>
   )

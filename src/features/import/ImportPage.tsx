@@ -284,6 +284,7 @@ export function ImportPage() {
       ['comment', 'comments', c.comments],
       ['project', 'projects', c.projects],
       ['new label', 'new labels', c.labels],
+      ['new status', 'new statuses', c.statuses],
       ['view', 'views', c.views],
     ]
     return (

@@ -14,11 +14,13 @@ import { cn } from '@/lib/utils'
 import type { Issue } from '@/model/schema'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/ui/command'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/ui/dialog'
-import { estimateItems, priorityItems, statusItems, useLabelItems, usePeopleItems } from './pickers'
+import { estimateItems, priorityItems, useLabelItems, usePeopleItems, useStatusItems } from './pickers'
 
 const TITLES: Record<QuickField, string> = { status: 'Change status', priority: 'Change priority', assignee: 'Assign to', labels: 'Change labels', estimate: 'Set estimate' }
 
 function Menu({ issues, field }: { issues: Issue[]; field: QuickField }) {
+  // issues of one team get that team's statuses
+  const statusItems = useStatusItems(issues.every((i) => i.team === issues[0]?.team) ? issues[0]?.team : undefined)
   const people = usePeopleItems()
   const labels = useLabelItems()
   const close = () => usePalette.setState({ quick: null })
