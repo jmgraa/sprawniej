@@ -5,15 +5,17 @@
  */
 import { useState, type ReactNode } from 'react'
 import { useLocation } from 'wouter'
-import { Archive, CircleDot, Copy, ExternalLink, Link2, SignalHigh, Tag, Trash2, Triangle, UserRound } from 'lucide-react'
+import { AlarmClock, Archive, Check, CircleDot, Copy, ExternalLink, Link2, SignalHigh, Tag, Trash2, Triangle, UserRound, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { usePalette, type QuickField } from '@/app/palette'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
-import { archiveIssues, deleteIssue } from '@/data/actions'
+import { acceptIssue, archiveIssues, declineIssue, deleteIssue, snoozeIssue } from '@/data/actions'
 import { issueRef } from '@/data/store'
 import type { Issue } from '@/model/schema'
+import { isTriage } from '@/model/status'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuLabel, ContextMenuSeparator, ContextMenuShortcut, ContextMenuTrigger } from '@/ui/context-menu'
 import { clearSelection, useSelection } from './selection'
+import { SNOOZES, snoozeUntil } from './snooze'
 
 const FIELDS: [QuickField, string, typeof CircleDot, string][] = [
   ['status', 'Status', CircleDot, 'S'],
@@ -59,6 +61,22 @@ export function IssueMenu({ issue, disabled, children }: { issue: Issue; disable
               <ContextMenuItem onSelect={() => copy(`${location.origin}${location.pathname}#/issue/${ref}`, 'Link')}>
                 <Link2 /> Copy link
               </ContextMenuItem>
+            </>
+          )}
+          {!many && isTriage(issue.status) && (
+            <>
+              <ContextMenuSeparator />
+              <ContextMenuItem onSelect={() => acceptIssue(issue.id)}>
+                <Check /> Accept
+              </ContextMenuItem>
+              <ContextMenuItem onSelect={() => declineIssue(issue.id)}>
+                <X /> Decline
+              </ContextMenuItem>
+              {SNOOZES.map(([label, step]) => (
+                <ContextMenuItem key={label} onSelect={() => snoozeIssue(issue.id, snoozeUntil(step))}>
+                  <AlarmClock /> Snooze {label.toLowerCase()}
+                </ContextMenuItem>
+              ))}
             </>
           )}
           <ContextMenuSeparator />

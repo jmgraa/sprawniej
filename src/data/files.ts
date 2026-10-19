@@ -16,7 +16,6 @@ import {
   personSchema,
   projectSchema,
   readStateSchema,
-  statusCategorySchema,
   teamSchema,
   viewSchema,
   workspaceSchema,
@@ -31,7 +30,6 @@ import {
   type Person,
   type Project,
   type ReadState,
-  type StatusCategory,
   type Team,
   type View,
   type Workspace,
@@ -45,7 +43,6 @@ export const paths = {
   label: (id: string) => `labels/${id}.json`,
   status: (id: string) => `statuses/${id}.json`,
   builtinStatus: (id: string) => `builtin-statuses/${id}.json`,
-  statusCategory: (id: string) => `status-categories/${id}.json`,
   team: (key: string) => `teams/${key}/team.json`,
   issue: (i: Pick<Issue, 'team' | 'id'>) => `teams/${i.team}/issues/${i.id}.md`,
   /** archived issues of a team, one file per month (see archiveMonth) */
@@ -64,7 +61,6 @@ export type Parsed =
   | { kind: 'label'; value: Label }
   | { kind: 'status'; value: CustomStatus }
   | { kind: 'builtinStatus'; value: BuiltinStatus }
-  | { kind: 'statusCategory'; value: StatusCategory }
   | { kind: 'team'; value: Team }
   | { kind: 'issue'; value: Issue }
   | { kind: 'archive'; team: string; value: ArchivedIssue[] }
@@ -82,7 +78,6 @@ export function classify(path: string): { kind: Parsed['kind']; parts: string[] 
     [/^labels\/([^/]+)\.json$/, 'label'],
     [/^statuses\/([^/]+)\.json$/, 'status'],
     [/^builtin-statuses\/([^/]+)\.json$/, 'builtinStatus'],
-    [/^status-categories\/([^/]+)\.json$/, 'statusCategory'],
     [/^teams\/([^/]+)\/team\.json$/, 'team'],
     [/^teams\/([^/]+)\/issues\/([^/]+)\.md$/, 'issue'],
     [/^teams\/([^/]+)\/archive\/([^/]+)\.jsonl$/, 'archive'],
@@ -184,7 +179,7 @@ export function joinFrontMatter(fields: Record<string, unknown>, body: string): 
 }
 
 /** front matter keys in a fixed, readable order; anything unknown keeps its place after them */
-const ISSUE_ORDER = ['id', 'number', 'title', 'status', 'customStatus', 'priority', 'assignee', 'labels', 'project', 'parent', 'dueDate', 'estimate', 'sortOrder', 'createdBy', 'createdAt', 'updatedAt', 'completedAt', 'duplicateOf', 'subscribers', 'unsubscribed']
+const ISSUE_ORDER = ['id', 'number', 'title', 'status', 'customStatus', 'priority', 'assignee', 'labels', 'project', 'parent', 'dueDate', 'estimate', 'sortOrder', 'createdBy', 'createdAt', 'updatedAt', 'completedAt', 'duplicateOf', 'snoozedUntil', 'snoozedAt', 'subscribers', 'unsubscribed']
 
 function ordered(obj: Record<string, unknown>, order: string[], drop: string[] = []): Record<string, unknown> {
   const out: Record<string, unknown> = {}
@@ -348,8 +343,6 @@ export function parseFile(path: string, text: string): Parsed | null {
       return { kind: 'status', value: check(customStatusSchema, json(), path) }
     case 'builtinStatus':
       return { kind: 'builtinStatus', value: check(builtinStatusSchema, json(), path) }
-    case 'statusCategory':
-      return { kind: 'statusCategory', value: check(statusCategorySchema, json(), path) }
     case 'team':
       return { kind: 'team', value: check(teamSchema, json(), path) }
     case 'issue': {

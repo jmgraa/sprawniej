@@ -9,22 +9,22 @@ import { PersonAvatar } from '@/components/Avatar'
 import type { PickerItem } from '@/components/Picker'
 import { issueRef, useData } from '@/data/store'
 import { isGuest, type Issue } from '@/model/schema'
-import { ESTIMATES, PRIORITY_ORDER, PRIORITY_NAMES, workflow, type Priority, type Status, type StatusId } from '@/model/status'
+import { ESTIMATES, PRIORITY_ORDER, PRIORITY_NAMES, usedBy, workflow, type Priority, type Status, type StatusId } from '@/model/status'
 import { EstimateIcon } from './DueDate'
 import { estimateName } from './format'
 import { PriorityIcon, StatusIcon } from './icons'
 
 /** every status in order, with what the workspace changed and added (redraws when that changes) */
 export function useWorkflow(): Status[] {
-  const [custom, builtins, categories] = useData(useShallow((s) => [s.statuses, s.builtinStatuses, s.statusCategories]))
-  return useMemo(() => workflow(Object.values(custom), { builtins: Object.values(builtins), categories: Object.values(categories) }), [custom, builtins, categories])
+  const [custom, builtins] = useData(useShallow((s) => [s.statuses, s.builtinStatuses]))
+  return useMemo(() => workflow(Object.values(custom), { builtins: Object.values(builtins) }), [custom, builtins])
 }
 
 /** the statuses a team uses (without a team, every status in the workspace) */
 export function useStatusItems(team?: string): PickerItem<StatusId>[] {
   const all = useWorkflow()
   return useMemo(
-    () => all.filter((s) => !team || !s.teams || s.teams.includes(team)).map((s) => ({ value: s.id, label: s.name, icon: <StatusIcon status={s.id} /> })),
+    () => all.filter((s) => !team || usedBy(s, team)).map((s) => ({ value: s.id, label: s.name, icon: <StatusIcon status={s.id} /> })),
     [all, team],
   )
 }
@@ -114,4 +114,17 @@ export function estimateItems(current?: number | null): PickerItem<number | null
     { value: null, label: 'No estimate', icon: <EstimateIcon className="opacity-50" /> },
     ...values.map((p) => ({ value: p as number | null, label: estimateName(p), keywords: [String(p)], icon: <EstimateIcon /> })),
   ]
+}
+
+/** any other issue in the workspace, newest first: the original of a duplicate */
+export function useOtherIssueItems(id: string): PickerItem<string>[] {
+  const issues = useData((s) => s.issues)
+  return useMemo(
+    () =>
+      Object.values(issues)
+        .filter((i) => i.id !== id)
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+        .map((i) => ({ value: i.id, label: i.title, hint: issueRef(i), keywords: [issueRef(i)], icon: <StatusIcon status={i.status} /> })),
+    [issues, id],
+  )
 }

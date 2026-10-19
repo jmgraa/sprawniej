@@ -65,7 +65,7 @@ export function IssuesView({ page, filters, tab = 'all', baseDisplay, left, head
   // (whatever the page's filters say: a dropped card lands in its new column, never vanishes)
   const shown = useMemo(() => {
     const follow = { comments, people }
-    return all.filter((i) => kept.has(i.id) || (matches(i, filters, follow) && matches(i, extra, follow) && inTab(i, tab)))
+    return all.filter((i) => kept.has(i.id) || (matches(i, filters, follow) && matches(i, extra, follow) && inTab(i, tab, [...(filters.statuses ?? []), ...(extra.statuses ?? [])])))
   }, [all, filters, extra, tab, kept, comments, people])
   const board = display.layout === 'board'
   // on a team's page, a board offers only that team's projects as places to drop
@@ -173,6 +173,8 @@ export function IssuesView({ page, filters, tab = 'all', baseDisplay, left, head
 /** a view has no tabs: the tab you were on (Active, Backlog) becomes a status filter, so the view shows the same issues */
 function withTab(f: Filters, tab: IssueTab): Filters {
   if (tab === 'all') return f
-  const inTabNow = allStatuses().filter((st) => TAB_GROUPS[tab].includes(st.group)).map((st) => st.id)
+  const inTabNow = allStatuses()
+    .filter((st) => (tab === 'triage' ? !!st.triage : !st.triage && TAB_GROUPS[tab].includes(st.group)))
+    .map((st) => st.id)
   return { ...f, statuses: f.statuses?.length ? f.statuses.filter((st) => inTabNow.includes(st)) : inTabNow }
 }

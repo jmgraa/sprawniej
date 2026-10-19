@@ -34,9 +34,11 @@ Read before changing things:
     conflict.
   - Before releasing a format change, run the old (`main`) and new builds side by side on a throwaway workspace,
     edit from the old one, and check the new one still sees everything (docs/architecture.md, "Older versions").
-- **Priorities, the built-in status ids and the five status groups are fixed** (`src/model/status.ts`). A workspace
-  can rename, recolour and reorder built-in statuses (`builtin-statuses/`), add its own statuses (`statuses/`, the
-  Linear import brings them) and its own categories (`status-categories/`), each working like one of the groups.
+- **Statuses work like Linear's** (`src/model/status.ts`). Priorities, the built-in status ids and the categories
+  (Triage, Backlog, Unstarted, Started, Completed, Canceled, Duplicate) are fixed; there are no custom categories and a
+  status never changes category. Each team has a workflow: built-in statuses (renamed or reordered for everyone in
+  `builtin-statuses/`, left out per team with `hiddenIn`), statuses of the workspace's own (`statuses/`, per team), a
+  default status, triage and automations (in `team.json`). The Linear import brings all of it.
 - **Classic tokens only.** No fine-grained tokens, no OAuth app, no proxy server.
 - **No agents or AI features.**
 

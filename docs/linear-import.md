@@ -30,7 +30,8 @@ The code: `src/features/import/linearApi.ts` reads Linear, `linearMap.ts` turns 
 | Linear | Sprawniej |
 | --- | --- |
 | Team (key, name, icon emoji) | Team |
-| Workflow state | Status. A state with a built-in status's name (`In Review`, `Done`, `Cancelled`) is that status. Any other (`Blocked`, `QA`, `Triage`) becomes a status of the workspace's own (`statuses/<id>.json`) with Linear's name, colour, kind and place, for the teams that have it; the same name in several teams is one status. Linear's `triage` kind counts as backlog. |
+| Workflow state | Status, in the team's workflow. A state with a built-in status's name (`In Review`, `Done`, `Cancelled`) is that status, and any `duplicate` state is Duplicate. Any other (`Blocked`, `QA`, `Triage`) becomes a status of the workspace's own (`statuses/<id>.json`) with Linear's name, colour, description, category and place, for the teams that have it; the same name in several teams is one status. A built-in status a team's Linear workflow doesn't have is left out of that team's workflow (except Duplicate). |
+| Team settings | Triage on or off, the default status, auto-close and auto-archive periods, closing parents with their sub-issues and the other way round. A team that's already here keeps what it has set. |
 | Priority 0 to 4 | Same numbers |
 | Issue number, title, description (Markdown) | Same |
 | Assignee, creator | Matched GitHub person, the person who hasn't joined, or no one |

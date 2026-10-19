@@ -371,6 +371,43 @@ describe('importing statuses', () => {
     expect(byId.statuses?.sort()).toEqual([byId.blocked, 'in_review'].sort())
     // "any canceled kind" takes in the team's own canceled statuses too
     const byKind = filtered({ state: { type: { eq: 'canceled' } } })
-    expect(byKind.statuses).toEqual(['canceled', 'duplicate', byKind.blocked])
+    // Duplicate is a kind of its own in Linear
+    expect(byKind.statuses).toEqual(['canceled', byKind.blocked])
+  })
+})
+
+describe('importing a team’s workflow and settings', () => {
+  const eng = (id: string, name: string, type: string, position: number) => ({ id, name, type, color: '#888888', position, team: { id: 't-eng' } })
+  // a whole Linear workflow for ENG, without In Progress (QA instead), with Triage
+  const states = [
+    eng('w-triage', 'Triage', 'triage', 0),
+    eng('w-backlog', 'Backlog', 'backlog', 1),
+    eng('w-todo', 'Todo', 'unstarted', 2),
+    eng('w-qa', 'QA', 'started', 3),
+    eng('w-review', 'In Review', 'started', 4),
+    eng('w-done', 'Done', 'completed', 5),
+    eng('w-canceled', 'Canceled', 'canceled', 6),
+    eng('w-dup', 'Same as another', 'duplicate', 7),
+  ]
+  const teams = data.teams.map((t) =>
+    t.id === 't-eng' ? { ...t, triageEnabled: true, defaultIssueState: { id: 'w-backlog' }, autoClosePeriod: 6, autoArchivePeriod: 3, autoCloseParentIssues: true, autoCloseChildIssues: false } : t,
+  )
+  const withWorkflow = { ...data, teams, states, issues: [...data.issues, { ...data.issues[0], id: 'i-30', number: 30, title: 'Dupe', state: { id: 'w-dup', name: 'Same as another', type: 'duplicate' }, subscribers: undefined }] }
+  const r = buildImport(withWorkflow, choices, empty(), ids(), '2026-03-01T00:00:00.000Z')
+  const files = [...r.files.entries()]
+  const json = (path: string) => JSON.parse(r.files.get(path)!) as Record<string, unknown>
+
+  test('the team’s settings come over', () => {
+    expect(json('teams/ENG/team.json')).toMatchObject({ triage: true, defaultStatus: 'backlog', autoClose: 6, autoArchive: 3, closeParentWithSubIssues: true })
+    expect(json('teams/ENG/team.json')).not.toHaveProperty('closeSubIssuesWithParent')
+  })
+  test('a built-in status the team’s workflow doesn’t have is left out of it; Duplicate never is', () => {
+    expect(json('builtin-statuses/in_progress.json')).toEqual({ id: 'in_progress', hiddenIn: ['ENG'] })
+    expect(files.some(([p]) => p === 'builtin-statuses/duplicate.json')).toBe(false)
+    expect(files.some(([p]) => p === 'builtin-statuses/todo.json')).toBe(false)
+  })
+  test('a duplicate state, whatever its name, is Duplicate', () => {
+    const dupe = files.find(([, t]) => t?.includes('title: Dupe'))![1]!
+    expect(dupe).toContain('status: duplicate')
   })
 })

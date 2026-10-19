@@ -20,7 +20,7 @@ import { findArchivedByRef, findByRef, issueRef, useData } from '@/data/store'
 import { Editor } from '@/editor/LazyEditor'
 import { useMedia } from '@/lib/useNarrow'
 import { cn } from '@/lib/utils'
-import { PRIORITY_NAMES, statusOf } from '@/model/status'
+import { PRIORITY_NAMES, isTriage, statusOf } from '@/model/status'
 import { Button } from '@/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@/ui/dialog'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
@@ -32,6 +32,7 @@ import { DueChip, DueDatePicker, EstimateIcon } from './DueDate'
 import { estimateName, shortDate } from './format'
 import { SubIssues } from './SubIssues'
 import { TitleField } from './TitleField'
+import { TriageBar } from './TriageBar'
 import { estimateItems, priorityItems, useLabelItems, useParentItems, usePeopleItems, useProjectItems, useStatusItems } from './pickers'
 
 function Property({ label, children }: { label: string; children: ReactNode }) {
@@ -68,6 +69,7 @@ export function IssuePage() {
   const labels = useData((s) => s.labels)
   const project = useData((s) => (issue?.project ? s.projects[issue.project] : undefined))
   const parent = useData((s) => (issue?.parent ? s.issues[issue.parent] : undefined))
+  const original = useData((s) => (issue?.duplicateOf ? s.issues[issue.duplicateOf] : undefined))
   // opening an issue reads its notes in your inbox
   const unread = useData(useShallow((s) => (issue ? s.inbox.filter((n) => n.issue === issue.id && isUnread(n, s.readState)).map((n) => n.id) : [])))
   useEffect(() => {
@@ -232,6 +234,16 @@ export function IssuePage() {
     <div className="flex min-h-0 flex-1">
       <article className="min-w-0 flex-1 overflow-y-auto px-4 py-6 lg:px-12 lg:py-10">
         <div className="mx-auto max-w-3xl">
+          {isTriage(issue.status) && (
+            <div className="mb-5">
+              <TriageBar issue={issue} />
+            </div>
+          )}
+          {original && (
+            <Link href={`/issue/${issueRef(original)}`} className="mb-3 mr-4 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+              <StatusIcon status={original.status} /> Duplicate of {issueRef(original)} {original.title}
+            </Link>
+          )}
           {parent && (
             <Link href={`/issue/${issueRef(parent)}`} className="mb-3 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
               <StatusIcon status={parent.status} /> Sub-issue of {issueRef(parent)} {parent.title}

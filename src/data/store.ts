@@ -3,7 +3,7 @@
  * they never change it directly. All changes go through `actions.ts` (see CLAUDE.md, golden rules).
  */
 import { create } from 'zustand'
-import type { ArchivedIssue, BuiltinStatus, Comment, CustomStatus, StatusCategory, InboxItem, Issue, Label, Person, Project, ReadState, Team, View, Workspace } from '@/model/schema'
+import type { ArchivedIssue, BuiltinStatus, Comment, CustomStatus, InboxItem, Issue, Label, Person, Project, ReadState, Team, View, Workspace } from '@/model/schema'
 import { setCustomStatuses } from '@/model/status'
 
 export interface DataState {
@@ -16,8 +16,6 @@ export interface DataState {
   statuses: Record<string, CustomStatus>
   /** what the workspace changed about built-in statuses, by status id */
   builtinStatuses: Record<string, BuiltinStatus>
-  /** the workspace's own categories of statuses */
-  statusCategories: Record<string, StatusCategory>
   teams: Record<string, Team>
   issues: Record<string, Issue>
   /** archived issues by id; empty until something needs them (loadArchive in project.ts) */
@@ -39,7 +37,6 @@ export const EMPTY: DataState = {
   labels: {},
   statuses: {},
   builtinStatuses: {},
-  statusCategories: {},
   teams: {},
   issues: {},
   archive: {},
@@ -55,8 +52,7 @@ export const useData = create<DataState>()(() => ({ ...EMPTY }))
 
 // statusOf and allStatuses read the workspace's statuses without the store; this keeps them in step (before screens redraw)
 useData.subscribe((s, prev) => {
-  if (s.statuses !== prev.statuses || s.builtinStatuses !== prev.builtinStatuses || s.statusCategories !== prev.statusCategories)
-    setCustomStatuses(Object.values(s.statuses), { builtins: Object.values(s.builtinStatuses), categories: Object.values(s.statusCategories) })
+  if (s.statuses !== prev.statuses || s.builtinStatuses !== prev.builtinStatuses) setCustomStatuses(Object.values(s.statuses), { builtins: Object.values(s.builtinStatuses) })
 })
 
 /** "ENG-12" */

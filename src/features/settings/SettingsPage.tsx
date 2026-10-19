@@ -393,7 +393,7 @@ const PAGES: SettingsPageDef[] = [
     group: 'Workspace',
     title: 'Statuses',
     icon: <CircleDot />,
-    description: 'Statuses are the steps an issue goes through, from start to finish. Every team has the built-in ones; add your own to any kind, like Blocked under Canceled.',
+    description: 'Statuses are the steps an issue goes through, from start to finish. Each team has its own workflow, with triage and automations.',
     body: () => <StatusesSettings />,
   },
   {

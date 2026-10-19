@@ -71,10 +71,8 @@ export const customStatusSchema = z
     teams: z.array(z.string()).optional(),
     /** what it means, in a sentence */
     description: z.string().optional(),
-    /** where new issues wait to be looked at (Linear's triage); a backlog status with its own icon */
+    /** a status of the Triage category, where new issues wait to be looked at (Linear's triage); its group is backlog */
     triage: z.boolean().optional(),
-    /** the category of the workspace's own it's in (status-categories/<id>.json, of the same group); missing = its group's */
-    category: z.string().optional(),
   })
   .passthrough()
 export type CustomStatus = z.infer<typeof customStatusSchema>
@@ -93,24 +91,11 @@ export const builtinStatusSchema = z
     description: z.string().optional(),
     /** its place among the statuses of its category, lowest first */
     position: z.number().optional(),
+    /** teams whose workflow leaves it out */
+    hiddenIn: z.array(z.string()).optional(),
   })
   .passthrough()
 export type BuiltinStatus = z.infer<typeof builtinStatusSchema>
-
-/**
- * status-categories/<id>.json: a category of statuses of the workspace's own. It works like one of the built-in groups
- * (`kind`): its statuses get that group (so files keep a stand-in older versions understand), its icon and its tabs.
- */
-export const statusCategorySchema = z
-  .object({
-    id: z.string(),
-    name: z.string(),
-    kind: z.enum(STATUS_GROUPS),
-    /** its place among the workspace's categories of the same kind, which come after the built-in one */
-    position: z.number().optional(),
-  })
-  .passthrough()
-export type StatusCategory = z.infer<typeof statusCategorySchema>
 
 /** months after which finished issues are archived, unless a team says otherwise (team.autoArchive) */
 export const AUTO_ARCHIVE_MONTHS = 6
@@ -127,6 +112,16 @@ export const teamSchema = z
     lastNumber: z.number().int().optional(),
     /** finished issues are archived this many months after they were finished; 0 = never; missing = 6 */
     autoArchive: z.number().int().nonnegative().optional(),
+    /** where new issues start (a status in its workflow); missing = Todo */
+    defaultStatus: z.string().optional(),
+    /** issues from people outside the team start in Triage, to be accepted, declined or marked as duplicates */
+    triage: z.boolean().optional(),
+    /** open issues not started and untouched this many months are closed (Canceled); 0 or missing = never */
+    autoClose: z.number().int().nonnegative().optional(),
+    /** a parent issue is done once all its sub-issues are */
+    closeParentWithSubIssues: z.boolean().optional(),
+    /** closing a parent issue closes its open sub-issues the same way */
+    closeSubIssuesWithParent: z.boolean().optional(),
   })
   .passthrough()
 export type Team = z.infer<typeof teamSchema>
@@ -169,6 +164,9 @@ export const issueFieldsSchema = z
     subscribers: z.array(login).optional(),
     /** people who asked not to follow it */
     unsubscribed: z.array(login).optional(),
+    /** snoozed in Triage until this moment, unless it changes before (`snoozedAt` is when it was snoozed) */
+    snoozedUntil: iso.optional(),
+    snoozedAt: iso.optional(),
     /** the numbers it had before it moved to another team ("WEB-2"), so old links and mentions still find it */
     formerRefs: z.array(z.string()).optional(),
   })

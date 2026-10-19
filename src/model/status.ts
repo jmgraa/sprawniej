@@ -1,9 +1,11 @@
 /**
- * Issue statuses and priorities. Every team has the built-in statuses; a workspace can add its own on top
- * (statuses/<id>.json, usually brought over by the Linear import, like "Blocked"). Each status belongs to a group;
- * the groups decide its icon, its place in lists and which issues the Active, Backlog and All tabs show.
+ * Issue statuses and priorities. Each team has a workflow: the built-in statuses (a team can leave some out, and the
+ * workspace can rename and reorder them, builtin-statuses/) plus statuses of the workspace's own (statuses/<id>.json,
+ * often brought by the Linear import, like "Blocked"), each for some teams. Every status is in one of the fixed
+ * categories (Triage, Backlog, Unstarted, Started, Completed, Canceled, Duplicate), which can't change: they decide its
+ * icon, its place in lists, which tab shows its issues and whether they count as closed.
  */
-import type { BuiltinStatus, CustomStatus, StatusCategory } from './schema'
+import type { BuiltinStatus, CustomStatus } from './schema'
 
 export const STATUS_GROUPS = ['backlog', 'unstarted', 'started', 'completed', 'canceled'] as const
 export type StatusGroup = (typeof STATUS_GROUPS)[number]
@@ -12,54 +14,44 @@ export const BUILTIN_STATUS_IDS = ['backlog', 'todo', 'in_progress', 'in_review'
 /** a built-in status id, or the id of a workspace's own status */
 export type StatusId = string
 
+/**
+ * The fixed sections of a workflow, in order. Triage statuses are backlog ones (that is what files and older versions
+ * see) set apart for issues waiting to be looked at; Duplicate is a canceled one of its own.
+ */
+export const CATEGORIES = [
+  { id: 'triage', name: 'Triage', group: 'backlog' },
+  { id: 'backlog', name: 'Backlog', group: 'backlog' },
+  { id: 'unstarted', name: 'Unstarted', group: 'unstarted' },
+  { id: 'started', name: 'Started', group: 'started' },
+  { id: 'completed', name: 'Completed', group: 'completed' },
+  { id: 'canceled', name: 'Canceled', group: 'canceled' },
+  { id: 'duplicate', name: 'Duplicate', group: 'canceled' },
+] as const satisfies readonly { id: string; name: string; group: StatusGroup }[]
+export type CategoryId = (typeof CATEGORIES)[number]['id']
+
 export interface Status {
   id: StatusId
   name: string
   group: StatusGroup
+  /** its section of the workflow */
+  category: CategoryId
   /** CSS colour (a theme variable, or a workspace status's own colour) */
   color: string
   /** a workspace's own status: the teams that use it (missing = every team) */
   teams?: string[]
+  /** a built-in status: the teams that left it out */
+  hiddenIn?: string[]
   /** what it means */
   description?: string
-  /** where new issues wait to be looked at: a backlog status with the triage icon */
+  /** where new issues wait to be looked at (the Triage category) */
   triage?: boolean
-  /** one of the workspace's own (they can be deleted, and limited to some teams) */
-  custom?: boolean
-  /** the section of the workflow it's in: a built-in category id ("started", "duplicate") or one of the workspace's */
-  category: string
-}
-
-/** A section of the workflow: one per group, Duplicate on its own, and the workspace's own categories */
-export interface Category {
-  id: string
-  name: string
-  /** the group its statuses belong to */
-  kind: StatusGroup
+  /** one of the workspace's own */
   custom?: boolean
 }
 
-export const BUILTIN_CATEGORIES: Category[] = [
-  { id: 'backlog', name: 'Backlog', kind: 'backlog' },
-  { id: 'unstarted', name: 'Unstarted', kind: 'unstarted' },
-  { id: 'started', name: 'Started', kind: 'started' },
-  { id: 'completed', name: 'Completed', kind: 'completed' },
-  { id: 'canceled', name: 'Canceled', kind: 'canceled' },
-  { id: 'duplicate', name: 'Duplicate', kind: 'canceled' },
-]
-
-/** the categories in order: each of the workspace's own comes after the built-in one of its kind */
-export function categoriesOf(own: Iterable<StatusCategory>): Category[] {
-  const mine = [...own].sort((a, b) => (a.position ?? 0) - (b.position ?? 0) || a.name.localeCompare(b.name))
-  return BUILTIN_CATEGORIES.flatMap((c) =>
-    c.id === 'duplicate' ? [c] : [c, ...mine.filter((m) => m.kind === c.kind).map((m): Category => ({ id: m.id, name: m.name, kind: m.kind, custom: true }))],
-  )
-}
-
-/** what the workspace changed on top of the built-in statuses */
+/** what the workspace changed about the built-in statuses */
 export interface WorkflowExtras {
   builtins?: Iterable<BuiltinStatus>
-  categories?: Iterable<StatusCategory>
 }
 
 export const STATUSES: Status[] = [
@@ -78,7 +70,6 @@ export const STATUSES: Status[] = [
  * statuses it is about to write.
  */
 export function workflow(custom: Iterable<CustomStatus>, extras: WorkflowExtras = {}): Status[] {
-  const cats = categoriesOf(extras.categories ?? [])
   const changed = new Map<string, BuiltinStatus>([...(extras.builtins ?? [])].map((b) => [b.id, b]))
   const placed: (Status & { order: number })[] = [
     ...STATUSES.map((s, n) => {
@@ -88,6 +79,7 @@ export function workflow(custom: Iterable<CustomStatus>, extras: WorkflowExtras 
         ...(b?.name?.trim() && { name: b.name.trim() }),
         ...(b?.color && { color: b.color }),
         ...(b?.description !== undefined && { description: b.description.trim() || undefined }),
+        ...(b?.hiddenIn?.length && { hiddenIn: b.hiddenIn }),
         // built-in ones come first until someone puts them elsewhere
         order: b?.position ?? n - 100,
       }
@@ -96,17 +88,16 @@ export function workflow(custom: Iterable<CustomStatus>, extras: WorkflowExtras 
       id: s.id,
       name: s.name,
       group: s.group,
+      category: (s.triage && s.group === 'backlog' ? 'triage' : s.group) as CategoryId,
       color: s.color,
       custom: true,
-      // a category that's gone (or of another kind) leaves it in its group's own
-      category: s.category && cats.some((c) => c.id === s.category && c.kind === s.group) ? s.category : s.group,
       order: s.position ?? 0,
       ...(s.teams?.length && { teams: s.teams }),
       ...(s.description && { description: s.description }),
-      ...(s.triage && { triage: true }),
+      ...(s.triage && s.group === 'backlog' && { triage: true }),
     })),
   ]
-  return cats.flatMap((c) =>
+  return CATEGORIES.flatMap((c) =>
     placed
       .filter((s) => s.category === c.id)
       .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name))
@@ -117,6 +108,9 @@ export function workflow(custom: Iterable<CustomStatus>, extras: WorkflowExtras 
   )
 }
 
+/** whether a team's workflow has this status */
+export const usedBy = (s: Status, team: string): boolean => (s.custom ? !s.teams || s.teams.includes(team) : !s.hiddenIn?.includes(team))
+
 // the workspace's statuses, kept in step with the store (store.ts), so `statusOf` works anywhere
 let all = workflow([])
 let byId = new Map(all.map((s) => [s.id, s]))
@@ -126,13 +120,16 @@ export function setCustomStatuses(custom: Iterable<CustomStatus>, extras: Workfl
   byId = new Map(all.map((s) => [s.id, s]))
 }
 
-/** every status, in order; with a team, only the ones that team uses */
-export const allStatuses = (team?: string): Status[] => (team ? all.filter((s) => !s.teams || s.teams.includes(team)) : all)
+/** every status, in order; with a team, only the ones in its workflow */
+export const allStatuses = (team?: string): Status[] => (team ? all.filter((s) => usedBy(s, team)) : all)
 
 export type FindStatus = (id: StatusId) => Status
 
 /** a status whose file is gone (deleted, say) still shows, so nothing breaks */
 export const statusOf = (id: StatusId): Status => byId.get(id) ?? { id, name: 'Deleted status', group: 'unstarted', color: 'var(--status-backlog)', category: 'unstarted' }
+
+/** a status of the Triage category: its issues wait to be accepted, declined or marked as a duplicate */
+export const isTriage = (id: StatusId): boolean => !!statusOf(id).triage
 
 /**
  * How much of a started status's circle is filled: the later in the workflow, the fuller (½, ¾, ⅞…), so
@@ -157,10 +154,12 @@ export const isStatus = (id: string): boolean => byId.has(id)
 
 /** finished or canceled */
 export const isClosed = (id: StatusId): boolean => ['completed', 'canceled'].includes(statusOf(id).group)
-/** The tabs on a team's Issues page. */
-export type IssueTab = 'active' | 'backlog' | 'all'
+
+/** The tabs on a team's Issues page. Triage only shows with triage on, and its issues show nowhere else. */
+export type IssueTab = 'triage' | 'active' | 'backlog' | 'all'
 
 export const TAB_GROUPS: Record<IssueTab, StatusGroup[]> = {
+  triage: ['backlog'],
   active: ['unstarted', 'started'],
   backlog: ['backlog'],
   all: ['backlog', 'unstarted', 'started', 'completed', 'canceled'],

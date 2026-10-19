@@ -16,7 +16,6 @@ people/~<name>.json                      someone the Linear import brought who h
 labels/<id>.json                         one label
 statuses/<id>.json                       one status of the workspace's own (on top of the built-in ones)
 builtin-statuses/<id>.json               what the workspace changed about a built-in status (name, colour, place)
-status-categories/<id>.json              one category of statuses of the workspace's own
 teams/<KEY>/team.json                    one team
 teams/<KEY>/issues/<id>.md               one issue
 teams/<KEY>/archive/<YYYY-MM>.jsonl      archived issues of that month, with their comments (one per line)
@@ -83,6 +82,11 @@ an old link never opens a different issue. When two saves meet, the higher `last
 `autoArchive` (optional) is how many months after an issue is finished it gets archived: `1`, `3`, `6`, `12`, or `0`
 for never. Missing means 6.
 
+The team's workflow settings, all optional: `defaultStatus` (where new issues start; missing = Todo), `triage`
+(`true`: issues from people outside the team start in its Triage status), `autoClose` (months after which open
+issues not started yet and untouched are canceled; missing or `0` = never), `closeParentWithSubIssues` and
+`closeSubIssuesWithParent` (`true` turns them on).
+
 ## teams/ENG/issues/01J9Z….md
 
 YAML front matter with the fields, then the description in Markdown.
@@ -124,6 +128,7 @@ Charts should be easier to read at a glance.
 | `sortOrder` | Position in lists and boards ([fractional index](architecture.md#ordering-and-drag-n-drop)) |
 | `completedAt` | When it moved to Done, else `null` |
 | `duplicateOf` | Issue id, only for `duplicate` |
+| `snoozedUntil`, `snoozedAt` | Optional. Snoozed in Triage until then; it comes back sooner if it changes after `snoozedAt` |
 | `dueDate` | Optional. A day, `2026-10-31`, with no time: the same day for everyone. |
 | `estimate` | Optional. Points; the app offers 1, 2, 3, 5 and 8, and keeps any other number it finds. |
 | `subscribers` | Optional. Logins that asked to follow the issue. |
@@ -193,12 +198,10 @@ Files never name one of these in `status` alone: they name the built-in status o
 of Sprawniej from before these statuses reads every file, shows the issue under the stand-in and keeps the real
 status when it saves; if it changes the status, its change wins.
 
-`category` (optional) puts it in one of `status-categories/`, which must work like its `group`.
-
 ## builtin-statuses/<id>.json
 
 ```json
-{ "id": "todo", "name": "To do", "color": "#26b5ce", "description": "Next up", "position": 2 }
+{ "id": "todo", "name": "To do", "color": "#26b5ce", "description": "Next up", "position": 2, "hiddenIn": ["DES"] }
 ```
 
 Changes to a built-in status; `id` is one of the built-in ids, every other field is optional (an empty
@@ -207,18 +210,11 @@ and only show the default name. These never go in `statuses/`: a version that kn
 twice.
 
 `position` orders all statuses of a category together, built-in ones and the workspace's own; a built-in status
-without one comes before the others.
+without one comes before the others. `hiddenIn` lists the teams whose workflow leaves it out (Duplicate can't be).
 
-## status-categories/<id>.json
-
-```json
-{ "id": "01J9…", "name": "Blocked", "kind": "started", "position": 1 }
-```
-
-A category of statuses of the workspace's own. `kind` is the group it works like (`backlog`, `unstarted`, `started`,
-`completed`, `canceled`): its statuses have that `group`, its icon and its tabs, and files name that group's
-stand-in for them. It comes right after the built-in category of its kind (several by `position`). Deleting it leaves
-its statuses in the built-in category of their group.
+The categories are fixed: Triage (statuses with `triage: true`; their group is `backlog`), Backlog, Unstarted,
+Started, Completed, Canceled and Duplicate (the built-in `duplicate`). A team's workflow keeps at least one status in
+each category it has.
 
 ## projects/<id>.json
 
