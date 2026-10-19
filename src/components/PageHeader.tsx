@@ -19,11 +19,13 @@ interface Props {
   menu?: ReactNode
   /** more under the description, e.g. a project's properties */
   children?: ReactNode
+  /** beside the description, on the right (the Filter, Display and List / Board buttons) */
+  aside?: ReactNode
 }
 
 const editable = '-mx-2 rounded-md px-2 hover:bg-accent/50 focus:bg-accent/50'
 
-export function PageHeader({ emoji, onEmoji, name, onName, description, onDescription, kind, menu, children }: Props) {
+export function PageHeader({ emoji, onEmoji, name, onName, description, onDescription, kind, menu, children, aside }: Props) {
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-3">
@@ -41,8 +43,14 @@ export function PageHeader({ emoji, onEmoji, name, onName, description, onDescri
           </DropdownMenu>
         )}
       </div>
-      <InlineText value={description} onSave={onDescription} label="Description" placeholder="Add a description…" lines="many" className={`${editable} text-[15px] text-muted-foreground`} />
-      {children}
+      {/* the buttons line up with the description; on a narrow screen they wrap below it */}
+      <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
+        <div className="flex min-w-0 flex-1 basis-80 flex-col gap-2">
+          <InlineText value={description} onSave={onDescription} label="Description" placeholder="Add a description…" lines="many" className={`${editable} text-[15px] text-muted-foreground`} />
+          {children}
+        </div>
+        {aside && <div className="ml-auto">{aside}</div>}
+      </div>
     </div>
   )
 }

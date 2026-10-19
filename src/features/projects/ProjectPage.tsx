@@ -52,8 +52,9 @@ export function ProjectPage() {
             Add new issues here, or pick this project on any issue.
           </EmptyState>
         }
-        header={
+        header={(tools) => (
           <PageHeader
+            aside={tools}
             kind="project"
             emoji={project.emoji}
             onEmoji={(emoji) => updateProject(project.id, { emoji })}
@@ -83,7 +84,7 @@ export function ProjectPage() {
               </span>
             </div>
           </PageHeader>
-        }
+        )}
       />
       <ConfirmDialog
         open={confirmDelete}

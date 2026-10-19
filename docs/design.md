@@ -46,6 +46,8 @@ Icons are in `src/features/issues/icons.tsx`. Don't draw new versions elsewhere.
   (*Workspace*, *Your teams*); your picture, name and @login at the bottom with a menu.
 - **Top bar**: sidebar toggle, a thin divider, breadcrumbs (`Sprawniej / 🛠️ Engineering / Issues`), the save chip,
   and the search box with `⌘K`.
+- **View and project pages**: emoji and name on top; Filter, Display and List / Board sit on the right beside the
+  description (below it on a narrow screen), never on a row of their own.
 - **Buttons**: outlined by default (like Punchcard's `Today`). One white filled button per screen at most, for the
   main action (like `+ Track time`). Icon buttons are square.
 - **Switches between options** (List / Board): joined buttons where the chosen one has a light border and a
