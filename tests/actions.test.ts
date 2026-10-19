@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
-import { createIssue, createProject, createStatus, createView, deleteProject, deleteStatus, moveStatus, updateStatus, updateView } from '@/data/actions'
+import { createIssue, createProject, createStatus, createView, deleteProject, deleteStatus, reorderStatuses, updateStatus, updateView } from '@/data/actions'
 import { allStatuses } from '@/model/status'
 import { DEFAULT_DISPLAY } from '@/data/displays'
 import { resetProjection } from '@/data/project'
@@ -57,7 +57,7 @@ describe('issue numbers', () => {
 
 describe('statuses of the workspace’s own', () => {
   const team = { key: 'ENG', name: 'Engineering', emoji: '🚀', members: ['ana'], createdAt: 'x' }
-  test('add, rename, describe, limit to teams, move', () => {
+  test('add, rename, describe, limit to teams, reorder', () => {
     useData.setState({ teams: { ENG: team } })
     const blocked = createStatus('canceled', ' Blocked ')!
     const waiting = createStatus('canceled', 'Waiting')!
@@ -68,7 +68,7 @@ describe('statuses of the workspace’s own', () => {
     expect(useData.getState().statuses[blocked.id]).toMatchObject({ name: 'Blocked', group: 'canceled', description: 'Stuck on someone else', teams: ['ENG'] })
     expect(useData.getState().statuses[waiting.id].name).toBe('Waiting')
     expect(allStatuses().filter((s) => s.custom).map((s) => s.name)).toEqual(['Blocked', 'Waiting'])
-    moveStatus(waiting.id, -1)
+    reorderStatuses([waiting.id, blocked.id])
     expect(allStatuses().filter((s) => s.custom).map((s) => s.name)).toEqual(['Waiting', 'Blocked'])
     updateStatus(blocked.id, { description: ' ', teams: [] })
     expect(useData.getState().statuses[blocked.id]).not.toHaveProperty('description')

@@ -73,7 +73,7 @@ describe('grouping', () => {
     try {
       const blocked = { ...issues.find((i) => i.team === 'ENG')!, status: 'st-blocked' }
       const keys = groupIssues([blocked], DEFAULT_DISPLAY, ctx, 'all').map((g) => g.key)
-      expect(keys).toEqual(['backlog', 'todo', 'in_progress', 'in_review', 'st-qa', 'done', 'canceled', 'duplicate', 'st-blocked'])
+      expect(keys).toEqual(['backlog', 'todo', 'in_progress', 'in_review', 'st-qa', 'done', 'canceled', 'st-blocked', 'duplicate'])
       expect(allStatuses('DES').map((s) => s.id)).not.toContain('st-blocked')
       expect(isClosed('st-blocked')).toBe(true)
       expect(inTab(blocked, 'active')).toBe(false)

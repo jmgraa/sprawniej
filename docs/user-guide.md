@@ -106,10 +106,11 @@ statuses over as they are. Each one is a kind of the statuses above (not started
 it gets that kind's icon in its own colour and shows on the same tab. A team only offers the statuses it uses.
 The further along a started status is, the fuller its circle (In Progress is half full, In Review three quarters).
 
-**Settings › Statuses** lists every status by kind, with what it means. Add your own with **Add** next to a kind;
-rename, recolour (click its icon), describe, move up or down, or pick which teams use it. Deleting one moves its
-issues to the built-in status of the same kind (a deleted Blocked becomes Canceled). The built-in statuses can't be
-changed.
+**Settings › Statuses** lists every status by kind, with how many issues it has; new issues start in **Todo**
+(marked Default). Add your own with **＋** next to a kind. Drag one of yours by its handle (left of it) to put it
+elsewhere among your statuses of that kind. Its **⋯** menu has **Edit** (name, colour, description and which teams
+use it; changes save as you type) and **Delete**, which moves its issues to the built-in status of the same kind (a
+deleted Blocked becomes Canceled). The built-in statuses can't be changed.
 
 ### Priority
 

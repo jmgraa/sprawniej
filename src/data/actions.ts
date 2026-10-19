@@ -593,23 +593,14 @@ export function updateStatus(id: string, patch: Partial<Pick<CustomStatus, 'name
   save(one(paths.status(id), jsonToFile(next)), `Edit status ${next.name}`)
 }
 
-/** move a status one place up or down among the workspace's own statuses of its group */
-export function moveStatus(id: string, by: -1 | 1) {
+/** put the workspace's own statuses of one group in this order (positions become 1, 2, 3…) */
+export function reorderStatuses(ids: string[]) {
   const statuses = useData.getState().statuses
-  const status = statuses[id]
-  if (!status) return
-  const group = allStatuses().filter((s) => s.custom && s.group === status.group).map((s) => statuses[s.id])
-  const at = group.findIndex((s) => s.id === id)
-  const other = group[at + by]
-  if (!other) return
-  // positions are renumbered 1, 2, 3… so two statuses that had the same one still swap
-  const order = group.map((s) => s.id)
-  ;[order[at], order[at + by]] = [order[at + by], order[at]]
   const files = new Map<string, string | null>()
-  order.forEach((sid, n) => {
-    if (statuses[sid].position !== n + 1) files.set(paths.status(sid), jsonToFile({ ...statuses[sid], position: n + 1 }))
+  ids.forEach((id, n) => {
+    if (statuses[id] && statuses[id].position !== n + 1) files.set(paths.status(id), jsonToFile({ ...statuses[id], position: n + 1 }))
   })
-  save(files, `Move status ${status.name} ${by < 0 ? 'up' : 'down'}`)
+  if (files.size) save(files, `Reorder statuses: ${ids.map((id) => statuses[id]?.name).join(', ')}`)
 }
 
 /** how many issues have a status, archived ones not counted */

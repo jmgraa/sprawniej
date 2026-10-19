@@ -39,13 +39,13 @@ export const STATUSES: Status[] = [
 ]
 
 /**
- * Built-in and workspace statuses in one list: by group, built-in ones first, then the workspace's own by position.
- * Pure, so the import can use it on statuses it is about to write.
+ * Built-in and workspace statuses in one list: by group, built-in ones first, then the workspace's own by position;
+ * Duplicate comes last, a section of its own. Pure, so the import can use it on statuses it is about to write.
  */
 export function workflow(custom: Iterable<CustomStatus>): Status[] {
   const own = [...custom].sort((a, b) => (a.position ?? 0) - (b.position ?? 0) || a.name.localeCompare(b.name))
   return STATUS_GROUPS.flatMap((g) => [
-    ...STATUSES.filter((s) => s.group === g),
+    ...STATUSES.filter((s) => s.group === g && s.id !== 'duplicate'),
     ...own
       .filter((s) => s.group === g)
       .map(
@@ -60,6 +60,7 @@ export function workflow(custom: Iterable<CustomStatus>): Status[] {
           ...(s.triage && { triage: true }),
         }),
       ),
+    ...(g === 'canceled' ? STATUSES.filter((s) => s.id === 'duplicate') : []),
   ])
 }
 

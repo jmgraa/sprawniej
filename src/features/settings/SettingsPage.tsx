@@ -393,7 +393,7 @@ const PAGES: SettingsPageDef[] = [
     group: 'Workspace',
     title: 'Statuses',
     icon: <CircleDot />,
-    description: 'Every team has the built-in statuses. Add your own to any kind, like Blocked under Canceled: its issues get that kind’s icon in your colour and show on the same tabs.',
+    description: 'Statuses are the steps an issue goes through, from start to finish. Every team has the built-in ones; add your own to any kind, like Blocked under Canceled.',
     body: () => <StatusesSettings />,
   },
   {
