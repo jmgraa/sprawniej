@@ -13,7 +13,6 @@ import { TeamIssuesPage } from '@/features/teams/TeamIssuesPage'
 import { ViewPage } from '@/features/views/ViewPage'
 import { ViewsPage } from '@/features/views/ViewsPage'
 import { SettingsPage } from '@/features/settings/SettingsPage'
-import { ImportPage } from '@/features/import/ImportPage'
 import { WhatsNewPage } from '@/features/whatsnew/WhatsNewPage'
 import { Gate } from './Gate'
 import { NotFound } from './NotFound'
@@ -45,8 +44,7 @@ export function App() {
             <Route path="/issue/:ref" component={IssuePage} />
             <Route path="/help" component={HelpPage} />
             <Route path="/whats-new" component={WhatsNewPage} />
-            <Route path="/settings" component={SettingsPage} />
-            <Route path="/settings/import" component={ImportPage} />
+            <Route path="/settings/:page?" component={SettingsPage} />
             <Route component={NotFound} />
           </Switch>
           </Shell>

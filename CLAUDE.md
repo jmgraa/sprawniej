@@ -23,6 +23,17 @@ Read before changing things:
   needed, so old work doesn't slow anything down (docs/architecture.md, "Archive").
 - **The repo format is a promise.** Changing what a file means or where it lives is a MAJOR release with a migration.
   Unknown fields must survive a read and write (schemas use `.passthrough()`).
+- **Every format change is backwards compatible.** Older versions of the app stay open for days (an update waits
+  until the person clicks Update or closes every tab) and read and write the same repo. So:
+  - Only add optional fields, files or folders; never put a value in an existing field that an older schema
+    rejects. An older version skips a file it can't read, and when it rewrites an archive month file it drops the
+    lines it can't read: that loses data.
+  - When a field needs a new kind of value, write a value older versions understand there and the new one in a new
+    field next to it (see the stand-in statuses: `status: canceled` + `customStatus`, in `src/data/files.ts`).
+  - An older version editing and saving must not lose what a newer one wrote, and its own edits must win where they
+    conflict.
+  - Before releasing a format change, run the old (`main`) and new builds side by side on a throwaway workspace,
+    edit from the old one, and check the new one still sees everything (docs/architecture.md, "Older versions").
 - **Priorities and the built-in statuses are fixed** (`src/model/status.ts`). A workspace's own statuses
   (`statuses/<id>.json`) come on top, each in one of the fixed groups; the Linear import brings them.
 - **Classic tokens only.** No fine-grained tokens, no OAuth app, no proxy server.

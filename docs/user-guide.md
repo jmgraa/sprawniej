@@ -20,13 +20,20 @@ The first time you open your team's issues, four short tips show you around. You
 
 ### Your name
 
-Teammates see the name from your GitHub profile. To go by another one here, open **Settings and people** and
-type it under **Your account**; it saves by itself. Your GitHub profile stays as it is. **Use your GitHub name**
+Teammates see the name from your GitHub profile. To go by another one here, open **Settings › Account** and
+type it; it saves by itself. Your GitHub profile stays as it is. **Use your GitHub name**
 puts the GitHub one back.
+
+### Settings
+
+**Settings** (the menu under your name, bottom left, or `⌘K`) has a page for each part, in the menu on its left:
+**Account** (your name, switching workspace, signing out) and, for the workspace, **General** (its name),
+**People**, **Labels**, **Statuses**, **Archive** and **Import from Linear**. On a phone, Settings shows that menu
+first.
 
 ### Inviting someone
 
-Open the menu under your name (bottom left) and choose **Settings and people**. Type their GitHub username and press
+Open the menu under your name (bottom left), choose **Settings**, then **People**. Type their GitHub username and press
 **Invite**. A join link made just for them appears below: copy it and send it to them. Their link is also next to
 their name in the list until they join. A long list comes in pages of 10 (**Previous** and **Next** below it), and
 **Search people** finds anyone by name or username, even with a typo or without Polish letters. (Only the

@@ -58,7 +58,7 @@ export function ArchiveList({ team, left }: { team: string; left: React.ReactNod
           title="Nothing archived yet"
           action={
             <Button variant="outline" asChild>
-              <Link href="/settings">Change when issues are archived</Link>
+              <Link href="/settings/archive">Change when issues are archived</Link>
             </Button>
           }
         >

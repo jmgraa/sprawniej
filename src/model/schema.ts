@@ -102,11 +102,16 @@ export const issueFieldsSchema = z
     id: z.string(),
     number: z.number().int().positive(),
     title: z.string(),
-    /** a built-in status id ("in_progress") or the id of one of statuses/ */
+    /**
+     * In the file, always a built-in status id ("in_progress"): versions before workspace statuses only accept
+     * those, and skip (or, in the archive, drop) an issue with anything else. In memory, the real status, which can be
+     * one of statuses/ (src/data/files.ts turns one into the other).
+     */
     status: z.string().min(1),
     /**
      * a status of the workspace's own (statuses/<id>.json). `status` then holds the built-in one standing in for it
      * (`as`), for versions of the app that don't know workspace statuses; one of those changing `status` ends it.
+     * Backwards compatibility: don't remove or simplify this (CLAUDE.md, docs/architecture.md "Older versions").
      */
     customStatus: z.object({ id: z.string(), as: z.string() }).passthrough().optional(),
     priority: z.union(PRIORITY_IDS.map((p) => z.literal(p))),
@@ -210,6 +215,7 @@ export const filtersSchema = z
     /**
      * statuses of the workspace's own; `statuses` holds the built-in one standing in for each (`as`), for versions of
      * the app that don't know them. `added`: that stand-in is there only for it, not chosen itself.
+     * Backwards compatibility: don't remove or simplify this (CLAUDE.md, docs/architecture.md "Older versions").
      */
     customStatuses: z.array(z.object({ id: z.string(), as: z.string(), added: z.boolean().optional() }).passthrough()).optional(),
   })
@@ -256,7 +262,7 @@ export const inboxItemSchema = z
     comment: z.string().optional(),
     /** the new status (status); for a status of the workspace's own, the built-in one standing in for it */
     status: z.string().optional(),
-    /** the new status, when it's one of the workspace's own */
+    /** the new status, when it's one of the workspace's own (`status` holds its stand-in, for older versions) */
     customStatus: z.string().optional(),
   })
   .passthrough()

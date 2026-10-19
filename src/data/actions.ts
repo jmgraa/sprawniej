@@ -283,7 +283,10 @@ export function moveIssueToTeam(id: string, team: string): Issue | undefined {
 
 // ---------- the archive ----------
 
-/** change the records in one archive month file; the change goes into `files` (an emptied file is removed) */
+/**
+ * change the records in one archive month file; the change goes into `files` (an emptied file is removed). Lines this
+ * version can't read stay as they are (archiveLinesUnread): dropping them would lose a newer version's issues.
+ */
 function editArchive(files: Map<string, string | null>, path: string, team: string, edit: (records: ArchivedIssue[]) => ArchivedIssue[]) {
   const text = files.has(path) ? files.get(path) : (archiveFiles().get(path) ?? null)
   files.set(path, archiveToFile(edit(text ? parseArchive(path, team, text) : []), text ? archiveLinesUnread(path, team, text) : []))

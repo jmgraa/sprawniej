@@ -91,7 +91,8 @@ export function startedFill(id: StatusId): number {
 
 /**
  * The built-in status that stands in for a workspace's own status in the files (`status: canceled` next to
- * `customStatus: { id, as: canceled }`), so a version of the app from before workspace statuses can still read them
+ * `customStatus: { id, as: canceled }`), so a version of the app from before workspace statuses can still read them.
+ * Backwards compatibility: don't remove or simplify this (CLAUDE.md, docs/architecture.md "Older versions").
  */
 export const STAND_IN: Record<StatusGroup, StatusId> = { backlog: 'backlog', unstarted: 'todo', started: 'in_progress', completed: 'done', canceled: 'canceled' }
 

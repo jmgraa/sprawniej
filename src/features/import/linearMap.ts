@@ -340,6 +340,8 @@ export function buildImport(data: LinearData, choices: ImportChoices, ws: Existi
     statusId.set(st.id, status.id)
   }
   const everyStatus: Status[] = workflow(statuses.values())
+  // what the files are written with: they name a built-in stand-in for each of these statuses, so older versions of
+  // the app can read them (backwards compatibility, see src/data/files.ts). Always pass it to the writers below.
   const findStatus: FindStatus = (id) => everyStatus.find((s) => s.id === id) ?? statusOf(id)
 
   // projects: the ones these teams' issues belong to, or that belong to these teams

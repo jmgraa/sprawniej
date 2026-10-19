@@ -188,6 +188,11 @@ function ordered(obj: Record<string, unknown>, order: string[], drop: string[] =
 // version of the app from before workspace statuses reads every file, shows the issue under the stand-in and keeps
 // the real one when it saves. In memory, `status` is simply the real one. `find` tells a status's group (the import
 // passes the statuses it is about to write).
+//
+// Backwards compatibility: don't remove or simplify this, and don't write a workspace status id straight into
+// `status`. Older versions of the app stay open for days and read the same files; they skip an issue whose status
+// they don't know, and drop it from an archive month file they rewrite, so its data would be lost. Every file
+// written here must stay readable by them (CLAUDE.md, docs/architecture.md "Older versions"; tests/files.test.ts).
 
 function statusOut<T extends { status: string; customStatus?: unknown }>(fields: T, find: FindStatus): T {
   const { customStatus: _, ...rest } = fields
@@ -278,7 +283,10 @@ export function archiveToFile(records: ArchivedIssue[], unread: string[] = [], f
   return lines.length ? `${lines.join('\n')}\n` : null
 }
 
-/** the lines of a month file this version can't read (written by a newer one, say) */
+/**
+ * the lines of a month file this version can't read (written by a newer one, say). Backwards compatibility: they're
+ * written back untouched, so archiving with this version never loses what a newer one wrote; don't drop them.
+ */
 export function archiveLinesUnread(path: string, team: string, text: string): string[] {
   const read = new Set(parseArchive(path, team, text, true).map((a) => a.id))
   return text.split('\n').filter((line) => {

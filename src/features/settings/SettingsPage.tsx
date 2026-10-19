@@ -1,8 +1,11 @@
-/** Settings: the workspace's name, the people in it (and inviting more), labels, and your account. */
+/**
+ * Settings: a few pages behind a menu. Your account; and for the workspace: its name, the people in it (and inviting
+ * more), labels, statuses, the archive and the Linear import.
+ */
 import { useEffect, useState, type ReactNode } from 'react'
-import { Copy, ExternalLink, Link2, Loader2, LogOut, Repeat, Search, UserPlus } from 'lucide-react'
+import { Archive, CircleDot, CircleUser, Copy, Download, ExternalLink, Link2, Loader2, LogOut, Repeat, Search, SlidersHorizontal, Tag, UserPlus, Users } from 'lucide-react'
 import { toast } from 'sonner'
-import { Link } from 'wouter'
+import { Link, useParams } from 'wouter'
 import { useShallow } from 'zustand/react/shallow'
 import { useCrumbs } from '@/app/chrome'
 import { switchWorkspace } from '@/app/signOut'
@@ -20,20 +23,12 @@ import { useSession } from '@/session'
 import { Button } from '@/ui/button'
 import { Input } from '@/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select'
+import { ImportPage } from '@/features/import/ImportPage'
+import { cn } from '@/lib/utils'
 import { LabelsSettings } from './LabelsSettings'
 import { StatusesSettings } from './StatusesSettings'
 import { LinkPersonDialog } from './LinkPersonDialog'
 import { useUnlinked, workOf } from './unlinked'
-
-function Section({ title, children, description }: { title: string; description?: string; children: ReactNode }) {
-  return (
-    <section className="border-b py-8 last:border-0">
-      <h2 className="text-lg font-semibold">{title}</h2>
-      {description && <p className="mt-1 text-[15px] text-muted-foreground">{description}</p>}
-      <div className="mt-5">{children}</div>
-    </section>
-  )
-}
 
 function WorkspaceName() {
   const name = useData((s) => s.workspace?.name ?? '')
@@ -362,47 +357,116 @@ function ArchiveSettings() {
   )
 }
 
-export function SettingsPage() {
+/** Settings is a few pages; the menu on the left (on a phone: the Settings page itself) leads to them */
+interface SettingsPageDef {
+  id: string
+  group: 'Your account' | 'Workspace'
+  title: string
+  icon: ReactNode
+  description?: string
+  body: () => ReactNode
+  /** brings its own page (the import wizard) */
+  whole?: boolean
+}
+
+function General() {
   const repo = useSession((s) => s.workspace)
-  useCrumbs([{ label: 'Settings' }])
+  return (
+    <>
+      <WorkspaceName />
+      {repo && (
+        <a href={`https://github.com/${repoKey(repo)}`} target="_blank" rel="noreferrer" className="mt-3 flex w-fit items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
+          Stored on GitHub in {repoKey(repo)} <ExternalLink className="size-3.5" />
+        </a>
+      )}
+    </>
+  )
+}
+
+const PAGES: SettingsPageDef[] = [
+  { id: 'account', group: 'Your account', title: 'Account', icon: <CircleUser />, body: () => <Account /> },
+  { id: 'workspace', group: 'Workspace', title: 'General', icon: <SlidersHorizontal />, description: 'The workspace’s name, and where it is stored.', body: () => <General /> },
+  { id: 'people', group: 'Workspace', title: 'People', icon: <Users />, description: 'Everyone here can see and change every issue in the workspace.', body: () => <People /> },
+  { id: 'labels', group: 'Workspace', title: 'Labels', icon: <Tag />, description: 'Labels sort issues across teams. Renaming or recolouring one changes it on every issue.', body: () => <LabelsSettings /> },
+  {
+    id: 'statuses',
+    group: 'Workspace',
+    title: 'Statuses',
+    icon: <CircleDot />,
+    description: 'Every team has the built-in statuses. Add your own to any kind, like Blocked under Canceled: its issues get that kind’s icon in your colour and show on the same tabs.',
+    body: () => <StatusesSettings />,
+  },
+  {
+    id: 'archive',
+    group: 'Workspace',
+    title: 'Archive',
+    icon: <Archive />,
+    description: 'Finished issues leave the lists some time after they’re done, so the lists stay short and the app stays quick. Archived issues can still be opened, found and brought back.',
+    body: () => <ArchiveSettings />,
+  },
+  { id: 'import', group: 'Workspace', title: 'Import from Linear', icon: <Download />, body: () => <ImportPage />, whole: true },
+]
+
+/** where /settings goes on a big screen */
+const FIRST = 'workspace'
+
+function SettingsMenu({ current, className }: { current: string | undefined; className?: string }) {
+  return (
+    <nav aria-label="Settings" className={cn('flex flex-col gap-5', className)}>
+      {(['Your account', 'Workspace'] as const).map((group) => (
+        <div key={group} className="flex flex-col gap-0.5">
+          <div className="px-2 pb-1 text-[13px] text-muted-foreground">{group}</div>
+          {PAGES.filter((p) => p.group === group).map((p) => (
+            <Link
+              key={p.id}
+              href={`/settings/${p.id}`}
+              aria-current={p.id === current ? 'page' : undefined}
+              className={cn(
+                'flex h-10 items-center gap-2.5 rounded-md px-2 text-[15px] text-foreground/85 hover:bg-accent/60 md:h-9 [&_svg]:size-4 [&_svg]:text-muted-foreground',
+                p.id === current && 'bg-accent text-foreground',
+              )}
+            >
+              {p.icon} {p.title}
+            </Link>
+          ))}
+        </div>
+      ))}
+    </nav>
+  )
+}
+
+function Page({ page }: { page: SettingsPageDef }) {
+  useCrumbs([{ label: 'Settings', href: '/settings' }, { label: page.title }])
   return (
     <div className="flex-1 overflow-y-auto px-4 md:px-8">
-      <div className="mx-auto max-w-3xl py-4">
-        <Section title="Workspace">
-          <WorkspaceName />
-          {repo && (
-            <a href={`https://github.com/${repoKey(repo)}`} target="_blank" rel="noreferrer" className="mt-3 flex w-fit items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
-              Stored on GitHub in {repoKey(repo)} <ExternalLink className="size-3.5" />
-            </a>
-          )}
-        </Section>
-        <Section title="People" description="Everyone here can see and change every issue in the workspace.">
-          <People />
-        </Section>
-        <Section title="Labels" description="Labels sort issues across teams. Renaming or recolouring one changes it on every issue.">
-          <LabelsSettings />
-        </Section>
-        <Section
-          title="Statuses"
-          description="Every team has the built-in statuses. Add your own to any kind, like Blocked under Canceled: its issues get that kind's icon in your colour and show on the same tabs."
-        >
-          <StatusesSettings />
-        </Section>
-        <Section
-          title="Archive"
-          description="Finished issues leave the lists some time after they're done, so the lists stay short and the app stays quick. Archived issues can still be opened, found and brought back."
-        >
-          <ArchiveSettings />
-        </Section>
-        <Section title="Import" description="Bring teams, issues, comments, projects and labels over from Linear. You can run it again later to bring in new changes.">
-          <Button asChild variant="outline">
-            <Link href="/settings/import">Import from Linear</Link>
-          </Button>
-        </Section>
-        <Section title="Your account">
-          <Account />
-        </Section>
+      <div className="mx-auto max-w-3xl py-8">
+        <h1 className="text-2xl font-semibold">{page.title}</h1>
+        {page.description && <p className="mt-1 text-[15px] text-muted-foreground">{page.description}</p>}
+        <div className="mt-6">{page.body()}</div>
       </div>
     </div>
   )
+}
+
+export function SettingsPage() {
+  const { page: id } = useParams<{ page?: string }>()
+  const page = PAGES.find((p) => p.id === id)
+  const shown = page ?? PAGES.find((p) => p.id === FIRST)!
+  return (
+    <div className="flex min-h-0 flex-1">
+      {/* a phone shows the menu on /settings and the page on /settings/<page>; a big screen shows both */}
+      <div className={cn('w-full shrink-0 overflow-y-auto border-r px-3 py-6 md:block md:w-56', page ? 'hidden' : 'block')}>
+        <SettingsMenu current={page ? page.id : undefined} className="md:hidden" />
+        <SettingsMenu current={shown.id} className="hidden md:flex" />
+      </div>
+      <div className={cn('min-w-0 flex-1 flex-col', page ? 'flex' : 'hidden md:flex')}>{shown.whole ? shown.body() : <Page key={shown.id} page={shown} />}</div>
+      {!page && <MenuCrumbs />}
+    </div>
+  )
+}
+
+/** on /settings itself (the menu, on a phone) the breadcrumbs just say Settings */
+function MenuCrumbs() {
+  useCrumbs([{ label: 'Settings' }])
+  return null
 }
