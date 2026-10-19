@@ -26,9 +26,20 @@ export function matches(issue: Issue, f: Filters, ctx?: FollowContext): boolean 
   return true
 }
 
-export function inTab(issue: Issue, tab: IssueTab): boolean {
-  return TAB_GROUPS[tab].includes(statusOf(issue.status).group)
+/**
+ * Whether a tab shows an issue. Issues waiting in Triage show only on the Triage tab (not while snoozed), or where a
+ * filter asks for their status by name (`asked`), like in Linear: they're outside the normal workflow until accepted.
+ */
+export function inTab(issue: Issue, tab: IssueTab, asked?: string[]): boolean {
+  const s = statusOf(issue.status)
+  if (tab === 'triage') return !!s.triage && !isSnoozed(issue)
+  if (s.triage) return !!asked?.includes(issue.status)
+  return TAB_GROUPS[tab].includes(s.group)
 }
+
+/** snoozed in Triage, and nothing changed since */
+export const isSnoozed = (issue: Issue, at = Date.now()): boolean =>
+  !!issue.snoozedUntil && issue.snoozedUntil > new Date(at).toISOString() && issue.updatedAt <= (issue.snoozedAt ?? '')
 
 /** "completed" and "canceled" issues are hidden unless the display asks for them */
 export const isClosed = (issue: Issue) => closedStatus(issue.status)
@@ -93,7 +104,8 @@ export function groupIssues(issues: Issue[], display: Display, ctx: GroupCtx, ta
       return [{ key: 'all', value: null, title: 'All issues', issues: sorted }]
     case 'status': {
       const groups = TAB_GROUPS[tab]
-      const shown = (s: Status) => groups.includes(s.group) && (display.showCompleted || (s.group !== 'completed' && s.group !== 'canceled'))
+      // Triage statuses only on the Triage tab, and there nothing else
+      const shown = (s: Status) => groups.includes(s.group) && (tab === 'triage') === !!s.triage && (display.showCompleted || (s.group !== 'completed' && s.group !== 'canceled'))
       // the team's statuses, and any other one its issues have (an issue that moved here from another team)
       const known = allStatuses(ctx.team)
       const others = [...new Set(sorted.map((i) => i.status))].filter((id) => !known.some((s) => s.id === id)).map(statusOf)

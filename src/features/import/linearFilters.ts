@@ -165,7 +165,7 @@ export function mapViewFilter(filterData: unknown, ctx: FilterContext): MappedFi
               const state = [...ctx.states.values()].find((s) => s.name.toLowerCase() === v.toLowerCase())
               return ctx.status(state ?? { name: v, type: '' })
             }),
-          type: (vals) => convert<StatusId>(vals, (v) => (typeof v === 'string' && STATE_GROUPS[v] ? ctx.statuses.filter((s) => s.group === STATE_GROUPS[v]).map((s) => s.id) : undefined)),
+          type: (vals) => convert<StatusId>(vals, (v) => (typeof v === 'string' && STATE_GROUPS[v] ? ctx.statuses.filter((s) => (v === 'duplicate' ? s.category === 'duplicate' : v === 'triage' ? !!s.triage : s.group === STATE_GROUPS[v] && !s.triage && (v !== 'canceled' || s.category !== 'duplicate'))).map((s) => s.id) : undefined)),
         }),
       ),
     assignee: (f) => field('assignees', f, byProp({ id: personIds }, noneProp)),

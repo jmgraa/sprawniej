@@ -9,10 +9,10 @@ import { toast } from 'sonner'
 import { Box, CalendarClock, CircleSlash, Tag } from 'lucide-react'
 import { PersonAvatar } from '@/components/Avatar'
 import { Picker } from '@/components/Picker'
-import { createIssue, createLabel, type NewIssue } from '@/data/actions'
+import { createIssue, createLabel, startStatus, type NewIssue } from '@/data/actions'
 import { issueRef, useData } from '@/data/store'
 import { Editor } from '@/editor/LazyEditor'
-import { PRIORITY_NAMES, statusOf } from '@/model/status'
+import { PRIORITY_NAMES, allStatuses, statusOf } from '@/model/status'
 import { Button } from '@/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/ui/dialog'
 import { useComposer } from './composer'
@@ -27,11 +27,12 @@ const chip =
 type Draft = Required<Omit<NewIssue, 'description'>> & { description: string }
 
 function fresh(d: Partial<NewIssue>, fallbackTeam: string): Draft {
+  const team = d.team ?? fallbackTeam
   return {
-    team: d.team ?? fallbackTeam,
+    team,
     title: d.title ?? '',
     description: d.description ?? '',
-    status: d.status ?? 'todo',
+    status: d.status ?? startStatus(team, useData.getState().me?.login),
     priority: d.priority ?? 0,
     assignee: d.assignee ?? null,
     labels: d.labels ?? [],
@@ -114,7 +115,7 @@ function Composer() {
             placeholder="Team…"
             items={teams.map((t) => ({ value: t.key, label: t.name, icon: <span className="w-4 text-center">{t.emoji}</span> }))}
             value={draft.team}
-            onSelect={(key) => set({ team: key, project: null, parent: null })}
+            onSelect={(key) => set({ team: key, project: null, parent: null, ...(!allStatuses(key).some((s) => s.id === draft.status) && { status: startStatus(key, useData.getState().me?.login) }) })}
           >
             <button type="button" className={chip}>
               {team?.emoji} {team?.name}

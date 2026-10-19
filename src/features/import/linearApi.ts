@@ -10,6 +10,14 @@ export interface LTeam {
   key: string
   name: string
   icon: string | null
+  /** its workflow settings (read with the teams; older test data has none) */
+  triageEnabled?: boolean
+  defaultIssueState?: { id: string } | null
+  /** months, null = never */
+  autoClosePeriod?: number | null
+  autoArchivePeriod?: number
+  autoCloseParentIssues?: boolean | null
+  autoCloseChildIssues?: boolean | null
 }
 export interface LUser {
   id: string
@@ -93,6 +101,7 @@ export interface LState {
   name: string
   type: string
   color?: string
+  description?: string | null
   /** its place in its team's workflow */
   position?: number
   team?: { id: string } | null
@@ -164,7 +173,7 @@ const PAGE = 'pageInfo { hasNextPage endCursor }'
 /** step 1: who you are in Linear, its teams and people */
 export async function readBasics(key: string): Promise<Pick<LinearData, 'org' | 'teams' | 'users'>> {
   const d = await query<{ viewer: { organization: { name: string; urlKey: string } } }>(key, '{ viewer { id organization { name urlKey } } }')
-  const teams = await all<LTeam>(key, `query($after: String) { teams(first: 100, after: $after) { nodes { id key name icon } ${PAGE} } }`, {}, (x: { teams: Page<LTeam> }) => x.teams)
+  const teams = await all<LTeam>(key, `query($after: String) { teams(first: 100, after: $after) { nodes { id key name icon triageEnabled defaultIssueState { id } autoClosePeriod autoArchivePeriod autoCloseParentIssues autoCloseChildIssues } ${PAGE} } }`, {}, (x: { teams: Page<LTeam> }) => x.teams)
   const users = await all<LUser>(
     key,
     `query($after: String) { users(first: 100, after: $after, includeDisabled: true) { nodes { id name displayName email avatarUrl active } ${PAGE} } }`,
@@ -225,7 +234,7 @@ export async function readTeams(
   // every team's, not only the chosen ones: a workspace view can name another team's status
   const states = await all<LState>(
     key,
-    `query($after: String) { workflowStates(first: 100, after: $after) { nodes { id name type color position team { id } } ${PAGE} } }`,
+    `query($after: String) { workflowStates(first: 100, after: $after) { nodes { id name type color description position team { id } } ${PAGE} } }`,
     {},
     (x: { workflowStates: Page<LState> }) => x.workflowStates,
   )

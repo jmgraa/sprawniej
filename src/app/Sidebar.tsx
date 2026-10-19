@@ -96,7 +96,7 @@ function Me() {
         <div className="px-2 py-1.5 text-xs text-muted-foreground">Workspace: {workspace?.name}</div>
         <DropdownMenuItem asChild>
           <Link href="/settings">
-            <Settings /> Settings and people
+            <Settings /> Settings
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
@@ -119,7 +119,7 @@ function Me() {
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
-          <Link href="/settings">
+          <Link href="/settings/account">
             <LogOut /> Sign out…
           </Link>
         </DropdownMenuItem>

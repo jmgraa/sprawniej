@@ -14,6 +14,7 @@ import { isClosed } from '@/model/status'
 import { cn } from '@/lib/utils'
 import { PriorityIcon, StatusIcon } from './icons'
 import { GroupIcon } from './GroupIcon'
+import { IssueMenu } from './IssueMenu'
 import { DueChip, EstimateChip } from './DueDate'
 import { shortDate } from './format'
 import { SubIssueCount } from './SubIssueCount'
@@ -43,38 +44,40 @@ export function IssueRow({ issue, depth = 0, dragRef, dragProps, style, ghost, l
   const carried = useSelection((s) => s.draggingMany) && picked && !lifted
   const closed = isClosed(issue.status)
   return (
-    <Link
-      ref={dragRef}
-      {...dragProps}
-      href={`/issue/${issueRef(issue)}`}
-      data-issue-id={lifted ? undefined : issue.id}
-      data-picked={picked || undefined}
-      aria-selected={picked || undefined}
-      // capture: the link itself leaves ⌘/Shift-clicks to the browser (new tab), before an onClick would run
-      onClickCapture={(e) => selectionClick(e, issue.id)}
-      className={cn(
-        'group flex h-11 items-center gap-2 rounded-md px-2 text-[15px] sm:gap-3 sm:px-4 hover:bg-accent/60 focus-visible:bg-accent focus-visible:outline-none touch-manipulation select-none [-webkit-touch-callout:none]',
-        (ghost || carried) && 'opacity-30',
-        picked && !lifted && 'bg-accent ring-1 ring-inset ring-ring/50',
-        lifted && 'cursor-grabbing border bg-popover shadow-lg',
-      )}
-      style={{ paddingLeft: `${1 + depth * 2}rem`, ...style }}
-    >
-      <PriorityIcon priority={issue.priority} />
-      <span className="hidden min-w-[4.75rem] shrink-0 whitespace-nowrap text-muted-foreground tabular-nums sm:inline">{issueRef(issue)}</span>
-      <StatusIcon status={issue.status} />
-      <span className={cn('min-w-0 truncate', closed && 'text-muted-foreground')}>
-        <TitleText title={issue.title} />
-      </span>
-      <SubIssueCount id={issue.id} className="shrink-0" />
-      <span className="ml-auto flex shrink-0 items-center gap-2">
-        <span className="hidden items-center gap-2 md:flex">{issue.labels.map((id) => labels[id] && <LabelChip key={id} label={labels[id]} />)}</span>
-        {issue.estimate != null && <EstimateChip points={issue.estimate} className="hidden md:inline-flex" />}
-        {issue.dueDate && <DueChip day={issue.dueDate} closed={closed} />}
-        <PersonAvatar person={assignee} login={issue.assignee} />
-        <span className="hidden w-14 text-right text-sm text-muted-foreground sm:inline">{shortDate(issue.createdAt)}</span>
-      </span>
-    </Link>
+    <IssueMenu issue={issue} disabled={lifted}>
+      <Link
+        ref={dragRef}
+        {...dragProps}
+        href={`/issue/${issueRef(issue)}`}
+        data-issue-id={lifted ? undefined : issue.id}
+        data-picked={picked || undefined}
+        aria-selected={picked || undefined}
+        // capture: the link itself leaves ⌘/Shift-clicks to the browser (new tab), before an onClick would run
+        onClickCapture={(e) => selectionClick(e, issue.id)}
+        className={cn(
+          'group flex h-11 items-center gap-2 rounded-md px-2 text-[15px] sm:gap-3 sm:px-4 hover:bg-accent/60 focus-visible:bg-accent focus-visible:outline-none touch-manipulation select-none [-webkit-touch-callout:none]',
+          (ghost || carried) && 'opacity-30',
+          picked && !lifted && 'bg-accent ring-1 ring-inset ring-ring/50',
+          lifted && 'cursor-grabbing border bg-popover shadow-lg',
+        )}
+        style={{ paddingLeft: `${1 + depth * 2}rem`, ...style }}
+      >
+        <PriorityIcon priority={issue.priority} />
+        <span className="hidden min-w-[4.75rem] shrink-0 whitespace-nowrap text-muted-foreground tabular-nums sm:inline">{issueRef(issue)}</span>
+        <StatusIcon status={issue.status} />
+        <span className={cn('min-w-0 truncate', closed && 'text-muted-foreground')}>
+          <TitleText title={issue.title} />
+        </span>
+        <SubIssueCount id={issue.id} className="shrink-0" />
+        <span className="ml-auto flex shrink-0 items-center gap-2">
+          <span className="hidden items-center gap-2 md:flex">{issue.labels.map((id) => labels[id] && <LabelChip key={id} label={labels[id]} />)}</span>
+          {issue.estimate != null && <EstimateChip points={issue.estimate} className="hidden md:inline-flex" />}
+          {issue.dueDate && <DueChip day={issue.dueDate} closed={closed} />}
+          <PersonAvatar person={assignee} login={issue.assignee} />
+          <span className="hidden w-14 text-right text-sm text-muted-foreground sm:inline">{shortDate(issue.createdAt)}</span>
+        </span>
+      </Link>
+    </IssueMenu>
   )
 }
 

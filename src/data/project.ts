@@ -58,7 +58,7 @@ export function highestArchived(team: string): number {
   return max
 }
 
-type Draft = Pick<DataState, 'workspace' | 'people' | 'labels' | 'statuses' | 'teams' | 'issues' | 'archive' | 'projects' | 'views' | 'comments' | 'inbox' | 'readState'>
+type Draft = Pick<DataState, 'workspace' | 'people' | 'labels' | 'statuses' | 'builtinStatuses' | 'teams' | 'issues' | 'archive' | 'projects' | 'views' | 'comments' | 'inbox' | 'readState'>
 
 function remove(d: Draft, p: Parsed) {
   switch (p.kind) {
@@ -74,6 +74,9 @@ function remove(d: Draft, p: Parsed) {
       break
     case 'status':
       delete d.statuses[p.value.id]
+      break
+    case 'builtinStatus':
+      delete d.builtinStatuses[p.value.id]
       break
     case 'team':
       delete d.teams[p.value.key]
@@ -119,6 +122,9 @@ function add(d: Draft, p: Parsed, me: string | null) {
     case 'status':
       d.statuses[p.value.id] = p.value
       break
+    case 'builtinStatus':
+      d.builtinStatuses[p.value.id] = p.value
+      break
     case 'team':
       d.teams[p.value.key] = p.value
       break
@@ -154,6 +160,7 @@ const FIELD = {
   person: 'people',
   label: 'labels',
   status: 'statuses',
+  builtinStatus: 'builtinStatuses',
   team: 'teams',
   issue: 'issues',
   archive: 'archive',

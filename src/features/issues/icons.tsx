@@ -1,20 +1,36 @@
 /** Status and priority icons: the same shapes everywhere, so people recognise them at a glance. */
 import type { Priority, StatusId } from '@/model/status'
-import { statusOf } from '@/model/status'
+import { startedFill, statusOf } from '@/model/status'
 import { cn } from '@/lib/utils'
 
-/** how full a started status's circle is; a workspace's own started statuses are half full */
-const PIE: Partial<Record<StatusId, number>> = { in_progress: 0.5, in_review: 0.75 }
-
+/**
+ * A status's icon: its group decides the shape (dashed for backlog, empty for not started, a pie for started, a tick
+ * for done, a cross for canceled, a slash for duplicate, arrows for triage), its own colour fills it in
+ */
 export function StatusIcon({ status, className }: { status: StatusId; className?: string }) {
-  // the shape follows the status's group, so a status of the workspace's own looks like its kind
-  const { color, group, name } = statusOf(status)
+  const { color, group, name, triage } = statusOf(status)
   const box = cn('size-3.5 shrink-0', className)
+  if (triage) {
+    return (
+      <svg viewBox="0 0 14 14" className={box} aria-label={name}>
+        <circle cx="7" cy="7" r="6" fill={color} />
+        <path d="M4 5.6h5.4M8 4.2l1.4 1.4L8 7M10 8.4H4.6M6 7l-1.4 1.4L6 9.8" fill="none" stroke="#18181b" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    )
+  }
   if (group === 'completed') {
     return (
       <svg viewBox="0 0 14 14" className={box} aria-label={name}>
         <circle cx="7" cy="7" r="6" fill={color} />
         <path d="M4.3 7.2 6.2 9l3.5-3.8" fill="none" stroke="#18181b" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    )
+  }
+  if (status === 'duplicate') {
+    return (
+      <svg viewBox="0 0 14 14" className={box} aria-label={name}>
+        <circle cx="7" cy="7" r="6" fill={color} />
+        <path d="M4.9 9.1 9.1 4.9" stroke="#18181b" strokeWidth="1.6" strokeLinecap="round" />
       </svg>
     )
   }
@@ -26,7 +42,7 @@ export function StatusIcon({ status, className }: { status: StatusId; className?
       </svg>
     )
   }
-  const pie = group === 'started' ? (PIE[status] ?? 0.5) : undefined
+  const pie = group === 'started' ? startedFill(status) : undefined
   // a circle of radius 1.75 with a 3.5-wide stroke paints a pie; dasharray sets how much of it
   const c = 2 * Math.PI * 1.75
   return (

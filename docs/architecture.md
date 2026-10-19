@@ -271,3 +271,26 @@ is waiting shows a small toast once and an **Update available** button in the to
 switches by itself. Updating sends whatever is still waiting to be saved, then lets the new version take over and
 reloads. Another tab still running the old version recovers through the error screen (`Crash.tsx`), which reloads
 once when a part of the old version can't be found any more.
+
+### Older versions
+
+Because nothing switches by itself, people run different versions against the same workspace for days. Every change
+to the files must keep working for the versions already out there (CLAUDE.md, "Every format change is backwards
+compatible"):
+
+- An older version checks each file against its own schema and **skips** one it can't read: its issue vanishes from
+  its lists. When it rewrites an archive month file, it **drops** the lines it can't read, so those archived issues
+  are lost. Never write a value an older schema rejects.
+- New things go in new optional fields, files or folders. Schemas use `.passthrough()`, so an older version keeps
+  fields it doesn't know when it saves.
+- Where a field needs a new kind of value, the file keeps a value older versions know and the new one goes next to
+  it. Workspace statuses are the example: an issue in Blocked is written as `status: canceled` plus
+  `customStatus: { id, as: canceled }` (`statusOut` / `statusIn` in `src/data/files.ts`, the same for views and
+  inbox notes). An older version shows it as Canceled and keeps `customStatus` when it saves; if it changes the
+  status, `status` no longer equals `as` and its change wins.
+- Archive month files are written back with any line this version can't read kept as it is (`archiveLinesUnread`),
+  so the next format change can't lose archived issues either.
+
+To check a change: build `main` in a separate worktree (`git worktree add <dir> main`) and the branch, serve them on
+two ports (two origins keep separate storage), point both at a throwaway workspace, make edits and archive issues from
+the old one, then check the new one still shows everything as it should, and the files on GitHub still hold it.

@@ -8,12 +8,12 @@
  */
 import { generateKeyBetween } from 'fractional-indexing'
 import { ulid } from 'ulid'
-import type { ArchivedIssue, Comment, Display, Filters, InboxItem, Issue, Label, Person, Project, ReadState, Team, View } from '@/model/schema'
+import type { ArchivedIssue, BuiltinStatus, Comment, CustomStatus, Display, Filters, InboxItem, Issue, Label, Person, Project, ReadState, Team, View } from '@/model/schema'
 import { AUTO_ARCHIVE_MONTHS, FORMAT_VERSION, isGuest } from '@/model/schema'
-import { PRIORITY_NAMES, statusOf } from '@/model/status'
+import { PRIORITY_NAMES, STAND_IN, allStatuses, isBuiltIn, isClosed as closedStatus, statusOf, usedBy, type StatusGroup, type StatusId } from '@/model/status'
 import { BINARY_PREFIX } from '@/github/api'
 import { workspace } from '@/sync/engine'
-import { archiveLinesUnread, archiveMonth, archiveToFile, commentToFile as commentFile, inboxToFile, issueToFile, jsonToFile, parseArchive, paths, viewToFile } from './files'
+import { archiveLinesUnread, archiveMonth, archiveToFile, classify, commentToFile as commentFile, inboxToFile, issueToFile, jsonToFile, parseArchive, paths, viewToFile } from './files'
 import { commentNotes, followLists, followers, issueNotes, type Note } from './notify'
 import { changedOnly, keyBetween, keysBetween } from './ordering'
 import { applyFiles, archiveFiles, highestArchived, parsedFiles, pathOf } from './project'
@@ -71,7 +71,7 @@ function dropNotes(files: Map<string, string | null>, about: (n: InboxItem) => b
 
 /** fields a person can change (Pick, not Omit: Omit drops named keys on passthrough schemas) */
 export type IssuePatch = Partial<
-  Pick<Issue, 'title' | 'description' | 'status' | 'priority' | 'assignee' | 'labels' | 'project' | 'parent' | 'sortOrder' | 'duplicateOf' | 'dueDate' | 'estimate'>
+  Pick<Issue, 'title' | 'description' | 'status' | 'priority' | 'assignee' | 'labels' | 'project' | 'parent' | 'sortOrder' | 'duplicateOf' | 'dueDate' | 'estimate' | 'snoozedUntil' | 'snoozedAt'>
 >
 
 function describe(issue: Issue, patch: IssuePatch): string {
@@ -102,13 +102,42 @@ export function updateIssue(id: string, patch: IssuePatch): void {
   const same = (k: keyof IssuePatch) => JSON.stringify(patch[k] ?? null) === JSON.stringify(old[k as keyof Issue] ?? null)
   if ((Object.keys(patch) as (keyof IssuePatch)[]).every(same)) return
   const next: Issue = { ...old, ...patch, updatedAt: now() }
-  if (patch.status && patch.status !== old.status) {
-    next.completedAt = statusOf(patch.status).group === 'completed' ? now() : null
+  const moved = !!patch.status && patch.status !== old.status
+  if (moved) {
+    next.completedAt = statusOf(patch.status!).group === 'completed' ? now() : null
+    // a snooze in Triage ends once the issue moves on
+    if (!patch.snoozedUntil) {
+      delete next.snoozedUntil
+      delete next.snoozedAt
+    }
   }
   const files = one(paths.issue(next), issueToFile(next))
   const s = useData.getState()
   if (s.me) addNotes(files, id, issueNotes(old, next, s.me.login, s.people, s.comments[id] ?? []))
+  if (moved && closedStatus(next.status) && !closedStatus(old.status)) closeRelated(files, next)
   save(files, describe(old, patch))
+}
+
+/**
+ * The team's rules for parent and sub-issues, when `issue` has just closed: its open sub-issues close the same way
+ * (closeSubIssuesWithParent), and its parent is done once every sub-issue is closed (closeParentWithSubIssues).
+ */
+function closeRelated(files: Map<string, string | null>, issue: Issue) {
+  const s = useData.getState()
+  const team = s.teams[issue.team]
+  const at = now()
+  const close = (i: Issue, status: string) => {
+    const next = { ...i, status, updatedAt: at, completedAt: statusOf(status).group === 'completed' ? at : (i.completedAt ?? null) }
+    files.set(paths.issue(next), issueToFile(next))
+  }
+  if (team?.closeSubIssuesWithParent) {
+    for (const c of Object.values(s.issues)) if (c.parent === issue.id && !closedStatus(c.status)) close(c, issue.status)
+  }
+  const parent = issue.parent ? s.issues[issue.parent] : undefined
+  if (parent && s.teams[parent.team]?.closeParentWithSubIssues && !closedStatus(parent.status)) {
+    const siblings = Object.values(s.issues).filter((c) => c.parent === parent.id && c.id !== issue.id)
+    if (siblings.every((c) => closedStatus(c.status))) close(parent, allStatuses(parent.team).find((x) => x.category === 'completed')?.id ?? 'done')
+  }
 }
 
 /** Make exactly these people follow an issue (hear about its comments and status changes). */
@@ -226,7 +255,7 @@ export function createIssue(input: NewIssue): Issue {
     number,
     title: input.title.trim(),
     description: input.description ?? '',
-    status: input.status ?? 'todo',
+    status: input.status ?? startStatus(input.team, s.me?.login),
     priority: input.priority ?? 0,
     assignee: input.assignee ?? null,
     labels: input.labels ?? [],
@@ -283,7 +312,10 @@ export function moveIssueToTeam(id: string, team: string): Issue | undefined {
 
 // ---------- the archive ----------
 
-/** change the records in one archive month file; the change goes into `files` (an emptied file is removed) */
+/**
+ * change the records in one archive month file; the change goes into `files` (an emptied file is removed). Lines this
+ * version can't read stay as they are (archiveLinesUnread): dropping them would lose a newer version's issues.
+ */
 function editArchive(files: Map<string, string | null>, path: string, team: string, edit: (records: ArchivedIssue[]) => ArchivedIssue[]) {
   const text = files.has(path) ? files.get(path) : (archiveFiles().get(path) ?? null)
   files.set(path, archiveToFile(edit(text ? parseArchive(path, team, text) : []), text ? archiveLinesUnread(path, team, text) : []))
@@ -370,12 +402,35 @@ function monthsBefore(at: number, months: number): string {
 }
 
 /**
+ * A team's auto-close (team.autoClose months): issues not started yet (Triage, Backlog, Unstarted) that nobody touched
+ * for that long are canceled. Not while they're in an unfinished project, due in the future, or have open sub-issues.
+ */
+export function autoCloseStale(at = Date.now()) {
+  const s = useData.getState()
+  const stamp = new Date(at).toISOString()
+  const files = new Map<string, string | null>()
+  for (const i of Object.values(s.issues)) {
+    const months = s.teams[i.team]?.autoClose ?? 0
+    const group = statusOf(i.status).group
+    if (!months || (group !== 'backlog' && group !== 'unstarted') || i.updatedAt >= monthsBefore(at, months)) continue
+    const project = i.project ? s.projects[i.project] : undefined
+    if (project && project.status !== 'completed' && project.status !== 'canceled') continue
+    if (i.dueDate && i.dueDate >= stamp.slice(0, 10)) continue
+    if (Object.values(s.issues).some((c) => c.parent === i.id && !closedStatus(c.status))) continue
+    const to = allStatuses(i.team).find((x) => x.category === 'canceled')?.id ?? 'canceled'
+    files.set(paths.issue(i), issueToFile({ ...i, status: to, updatedAt: stamp }))
+  }
+  if (files.size) save(files, files.size === 1 ? 'Auto-close 1 issue nobody touched in a while' : `Auto-close ${files.size} issues nobody touched in a while`)
+}
+
+/**
  * The daily tidy-up: archives issues finished (and last changed) more than a team's `autoArchive` months ago, a few
  * hundred per save,
  * and mends the archive after two people's changes crossed (an archived issue someone edited at the same moment
  * stays out of the archive; a comment added to it meanwhile joins it). Returns how many were archived.
  */
 export async function tidyArchive(at = Date.now()): Promise<number> {
+  autoCloseStale(at)
   const s = useData.getState()
   const due: string[] = []
   for (const i of Object.values(s.issues)) {
@@ -565,12 +620,254 @@ export function deleteLabel(id: string) {
   save(files, `Delete label ${label.name}`)
 }
 
+// ---------- statuses and team workflows ----------
+
+/** a status name nobody has yet, built-in ones included (two statuses with one name can't be told apart) */
+export const statusNameFree = (name: string, except?: string) =>
+  !!name.trim() && !allStatuses().some((s) => s.id !== except && s.name.toLowerCase() === name.trim().toLowerCase())
+
+/** where a team's new issues start: its default status, or Todo (or its first Unstarted status) */
+export function defaultStatus(team: string): StatusId {
+  const mine = allStatuses(team)
+  const chosen = useData.getState().teams[team]?.defaultStatus
+  return (chosen && mine.find((s) => s.id === chosen)?.id) ?? mine.find((s) => s.id === 'todo')?.id ?? mine.find((s) => s.group === 'unstarted')?.id ?? 'todo'
+}
+
+/** the team's Triage status, when it has triage on */
+export function triageStatus(team: string): StatusId | undefined {
+  return useData.getState().teams[team]?.triage ? allStatuses(team).find((s) => s.triage)?.id : undefined
+}
+
+/** where a new issue starts: in Triage when someone outside a team with triage on makes it, otherwise the default */
+export function startStatus(team: string, login: string | null | undefined): StatusId {
+  const t = useData.getState().teams[team]
+  return (t?.triage && login && !t.members.includes(login) && triageStatus(team)) || defaultStatus(team)
+}
+
+/**
+ * A new status in a category, last in it. With a team, it's for that team: a status of that name another team
+ * already has (or a built-in one the team left out) joins its workflow instead of being made twice.
+ */
+export function createStatus(group: StatusGroup, name: string, opts: { team?: string; triage?: boolean } = {}): StatusId | undefined {
+  const st = useData.getState()
+  const same = allStatuses().find((s) => s.name.toLowerCase() === name.trim().toLowerCase())
+  if (same) {
+    if (!opts.team || usedBy(same, opts.team) || same.group !== group || !!same.triage !== !!opts.triage) return
+    addToTeam(same.id, opts.team)
+    return same.id
+  }
+  if (!name.trim()) return
+  const own = Object.values(st.statuses)
+  const category = opts.triage ? 'triage' : group
+  // after everything in its category (built-in ones without a place of their own come first anyway)
+  const last = Math.max(0, ...allStatuses().filter((s) => s.category === category).map((s) => (s.custom ? st.statuses[s.id]?.position : st.builtinStatuses[s.id]?.position) ?? 0))
+  const status: CustomStatus = {
+    id: ulid(),
+    name: name.trim(),
+    group,
+    color: opts.triage ? '#fc7840' : LABEL_COLORS[own.length % LABEL_COLORS.length],
+    position: last + 1,
+    ...(opts.team && { teams: [opts.team] }),
+    ...(opts.triage && { triage: true }),
+  }
+  save(one(paths.status(status.id), jsonToFile(status)), `Add status ${status.name}${opts.team ? ` to ${st.teams[opts.team]?.name ?? opts.team}` : ''}`)
+  return status.id
+}
+
+/** put a status (back) in a team's workflow */
+function addToTeam(id: string, team: string) {
+  const st = useData.getState()
+  if (isBuiltIn(id)) {
+    const b = st.builtinStatuses[id]
+    const hiddenIn = (b?.hiddenIn ?? []).filter((k) => k !== team)
+    save(one(paths.builtinStatus(id), jsonToFile({ ...b, id, hiddenIn })), `Add status ${statusOf(id).name} to ${st.teams[team]?.name ?? team}`)
+    return
+  }
+  const s = st.statuses[id]
+  if (!s?.teams?.length || s.teams.includes(team)) return
+  save(one(paths.status(id), jsonToFile({ ...s, teams: [...s.teams, team] })), `Add status ${s.name} to ${st.teams[team]?.name ?? team}`)
+}
+
+type StatusPatch = Partial<Pick<CustomStatus, 'name' | 'color' | 'description'>>
+
+/** change a status for every team that has it: one of the workspace's own in its file, a built-in one in builtin-statuses/ */
+export function updateStatus(id: string, patch: StatusPatch) {
+  const s = useData.getState()
+  if (patch.name !== undefined && !statusNameFree(patch.name, id)) return
+  const named = patch.name !== undefined ? { name: patch.name.trim() } : {}
+  if (isBuiltIn(id)) {
+    const next: BuiltinStatus = { ...s.builtinStatuses[id], id: id as BuiltinStatus['id'], ...patch, ...named }
+    save(one(paths.builtinStatus(id), jsonToFile(next)), `Edit status ${next.name ?? statusOf(id).name}`)
+    return
+  }
+  const status = s.statuses[id]
+  if (!status) return
+  const next: CustomStatus = { ...status, ...patch, ...named }
+  if (!next.description?.trim()) delete next.description
+  save(one(paths.status(id), jsonToFile(next)), `Edit status ${next.name}`)
+}
+
+/** a built-in status back to its own name, colour and description (it keeps its place and the teams that left it out) */
+export function resetBuiltinStatus(id: string) {
+  const b = useData.getState().builtinStatuses[id]
+  if (!b) return
+  const kept = { ...(b.position !== undefined && { position: b.position }), ...(b.hiddenIn?.length && { hiddenIn: b.hiddenIn }) }
+  save(one(paths.builtinStatus(id), Object.keys(kept).length ? jsonToFile({ id: b.id, ...kept }) : null), `Reset status ${statusOf(id).name}`)
+}
+
+/** put the statuses of one category in this order (positions become 1, 2, 3…), built-in ones included */
+export function reorderStatuses(ids: string[]) {
+  const s = useData.getState()
+  const files = new Map<string, string | null>()
+  ids.forEach((id, n) => {
+    if (isBuiltIn(id)) {
+      if (s.builtinStatuses[id]?.position !== n + 1) files.set(paths.builtinStatus(id), jsonToFile({ ...s.builtinStatuses[id], id, position: n + 1 }))
+    } else if (s.statuses[id] && s.statuses[id].position !== n + 1) files.set(paths.status(id), jsonToFile({ ...s.statuses[id], position: n + 1 }))
+  })
+  if (files.size) save(files, `Reorder statuses: ${ids.map((id) => statusOf(id).name).join(', ')}`)
+}
+
+/** how many of a team's issues (or everyone's) have a status, archived ones not counted */
+export const statusUses = (id: string, team?: string) => Object.values(useData.getState().issues).filter((i) => i.status === id && (!team || i.team === team)).length
+
+/** whether a team can do without a status: its category has to keep one, and Duplicate can't go */
+export function canRemoveFromTeam(id: string, team: string): boolean {
+  const s = statusOf(id)
+  return s.category !== 'duplicate' && allStatuses(team).filter((x) => x.category === s.category).length > 1
+}
+
+/** move a team's issues in one status to another, archived ones too (into `files`) */
+function moveTeamIssues(files: Map<string, string | null>, team: string | null, from: string, to: string) {
+  const s = useData.getState()
+  const at = now()
+  for (const i of Object.values(s.issues)) {
+    if (i.status !== from || (team && i.team !== team)) continue
+    const closes = statusOf(to).group === 'completed'
+    files.set(paths.issue(i), issueToFile({ ...i, status: to, updatedAt: at, completedAt: closes ? (i.completedAt ?? at) : statusOf(to).group === 'canceled' ? (i.completedAt ?? null) : null }))
+  }
+  for (const [path, text] of archiveFiles()) {
+    const k = classify(path)!.parts[0]
+    if ((team && k !== team) || !text.includes(isBuiltIn(from) ? `"status":"${from}"` : `"id":"${from}"`)) continue
+    editArchive(files, path, k, (records) => records.map((r) => (r.status === from ? { ...r, status: to } : r)))
+  }
+}
+
+/**
+ * Take a status out of a team's workflow (as in Linear: its category keeps at least one). The team's issues in it,
+ * archived ones too, move to `to`. A built-in one stays for other teams; one of the workspace's own that no team
+ * has any more is deleted, and views that filter by it lose it like a deleted label.
+ */
+export function removeStatusFromTeam(id: string, team: string, to: string) {
+  const s = useData.getState()
+  if (!canRemoveFromTeam(id, team) || to === id) return
+  const files = new Map<string, string | null>()
+  moveTeamIssues(files, team, id, to)
+  if (isBuiltIn(id)) {
+    const b = s.builtinStatuses[id]
+    files.set(paths.builtinStatus(id), jsonToFile({ ...b, id, hiddenIn: [...new Set([...(b?.hiddenIn ?? []), team])] }))
+  } else {
+    const status = s.statuses[id]
+    const rest = (status.teams?.length ? status.teams : Object.keys(s.teams)).filter((k) => k !== team)
+    if (rest.length) files.set(paths.status(id), jsonToFile({ ...status, teams: rest }))
+    else {
+      files.set(paths.status(id), null)
+      dropFromViews(files, 'statuses', id)
+    }
+  }
+  const t = s.teams[team]
+  if (t?.defaultStatus === id) {
+    const { defaultStatus: _, ...rest } = t
+    files.set(paths.team(team), jsonToFile(rest))
+  }
+  save(files, `Remove status ${statusOf(id).name} from ${t?.name ?? team}`)
+}
+
+/** delete a status of the workspace's own everywhere; its issues, archived ones too, move to `to` */
+export function deleteStatus(id: string, to?: string) {
+  const s = useData.getState()
+  const status = s.statuses[id]
+  if (!status) return
+  const files = new Map<string, string | null>([[paths.status(id), null]])
+  moveTeamIssues(files, null, id, to ?? STAND_IN[status.group])
+  dropFromViews(files, 'statuses', id)
+  save(files, `Delete status ${status.name}`)
+}
+
+export function setDefaultStatus(team: string, id: string) {
+  const t = useData.getState().teams[team]
+  if (!t || t.defaultStatus === id || !allStatuses(team).some((s) => s.id === id)) return
+  save(one(paths.team(team), jsonToFile({ ...t, defaultStatus: id })), `${t.name}: new issues start in ${statusOf(id).name}`)
+}
+
+type TeamAutomation = Partial<Pick<Team, 'autoClose' | 'closeParentWithSubIssues' | 'closeSubIssuesWithParent'>>
+
+export function setTeamAutomation(team: string, patch: TeamAutomation) {
+  const t = useData.getState().teams[team]
+  if (!t) return
+  const next: Team = { ...t, ...patch }
+  for (const k of Object.keys(patch) as (keyof TeamAutomation)[]) if (!next[k]) delete next[k]
+  save(one(paths.team(team), jsonToFile(next)), `${t.name}: automations`)
+}
+
+/**
+ * Turn triage on or off for a team. On: the team gets a Triage status (the workspace's, if it has one). Off: issues
+ * still waiting in Triage move to Backlog, and the Triage status leaves the team.
+ */
+export function setTeamTriage(team: string, on: boolean) {
+  const s = useData.getState()
+  const t = s.teams[team]
+  if (!t || !!t.triage === on) return
+  if (on) {
+    const existing = allStatuses().find((x) => x.triage)
+    if (existing) addToTeam(existing.id, team)
+    else createStatus('backlog', 'Triage', { team, triage: true })
+    save(one(paths.team(team), jsonToFile({ ...useData.getState().teams[team], triage: true })), `${t.name}: triage on`)
+    return
+  }
+  const files = new Map<string, string | null>()
+  const { triage: _, ...rest } = t
+  files.set(paths.team(team), jsonToFile(rest))
+  for (const tr of allStatuses(team).filter((x) => x.triage)) {
+    moveTeamIssues(files, team, tr.id, allStatuses(team).find((x) => x.category === 'backlog')?.id ?? 'backlog')
+    const status = s.statuses[tr.id]
+    const others = (status.teams?.length ? status.teams : Object.keys(s.teams)).filter((k) => k !== team)
+    files.set(paths.status(tr.id), others.length ? jsonToFile({ ...status, teams: others }) : null)
+  }
+  save(files, `${t.name}: triage off`)
+}
+
+// ---------- triage ----------
+
+/** accept an issue waiting in Triage: it moves to its team's default status */
+export function acceptIssue(id: string) {
+  const issue = useData.getState().issues[id]
+  if (issue) updateIssue(id, { status: defaultStatus(issue.team) })
+}
+
+/** decline an issue waiting in Triage: it's canceled */
+export function declineIssue(id: string) {
+  const issue = useData.getState().issues[id]
+  if (!issue) return
+  updateIssue(id, { status: allStatuses(issue.team).find((s) => s.category === 'canceled')?.id ?? 'canceled' })
+}
+
+/** mark an issue as a duplicate of another: it goes to Duplicate and points at the original */
+export function markDuplicate(id: string, of: string) {
+  if (id !== of) updateIssue(id, { status: 'duplicate', duplicateOf: of })
+}
+
+/** hide an issue from Triage until `until`, or until it changes before that */
+export function snoozeIssue(id: string, until: string) {
+  const at = now()
+  updateIssue(id, { snoozedUntil: until, snoozedAt: at })
+}
+
 /**
  * A label, project or team that's gone comes out of saved views' filters where others are left ("Bug or Design"
  * becomes "Design"). Where it was the only one, it stays: the view keeps showing nothing rather than suddenly showing
  * every issue, and its filter says the one it was about was deleted.
  */
-function dropFromViews(files: Map<string, string | null>, field: 'labels' | 'projects' | 'teams', id: string) {
+function dropFromViews(files: Map<string, string | null>, field: 'labels' | 'projects' | 'teams' | 'statuses', id: string) {
   for (const v of Object.values(useData.getState().views)) {
     if (files.has(paths.view(v.id))) continue // being deleted already
     const list = v.filters[field] as (string | null)[] | undefined

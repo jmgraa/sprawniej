@@ -8,8 +8,8 @@
 import { generateNKeysBetween } from 'fractional-indexing'
 import { archiveMonth, archiveToFile, commentToFile, issueToFile, jsonToFile, paths, viewToFile } from '@/data/files'
 import { linearIdsOf, linkedPerson, plainName as plain, relinkArchived, relinkIssue, relinkProject, relinkView } from '@/data/relink'
-import { STATUSES, statusOf, workflow, type FindStatus, type Priority, type Status, type StatusGroup, type StatusId } from '@/model/status'
-import { AUTO_ARCHIVE_MONTHS, isGuest, type ArchivedIssue, type Comment, type CustomStatus, type Issue, type Label, type Person, type Project, type Team, type View } from '@/model/schema'
+import { BUILTIN_STATUS_IDS, STATUSES, statusOf, workflow, type FindStatus, type Priority, type Status, type StatusGroup, type StatusId } from '@/model/status'
+import { AUTO_ARCHIVE_MONTHS, isGuest, type ArchivedIssue, type BuiltinStatus, type Comment, type CustomStatus, type Issue, type Label, type Person, type Project, type Team, type View } from '@/model/schema'
 import { SUBSCRIBERS_READ, type LIssue, type LinearData, type LLabel, type LTeam, type LUser } from './linearApi'
 import { mapViewFilter, type FilterContext } from './linearFilters'
 
@@ -107,11 +107,11 @@ export function builtInStatus(name: string): StatusId | undefined {
  * with its name, or the built-in one of its kind
  */
 export function mapStatus(state: { id?: string; name: string; type: string }, own?: Map<string, StatusId>): StatusId {
-  return (state.id && own?.get(state.id)) || (builtInStatus(state.name) ?? STATE_TYPES[state.type] ?? 'backlog')
+  return (state.id && own?.get(state.id)) || (state.type === 'duplicate' ? 'duplicate' : (builtInStatus(state.name) ?? STATE_TYPES[state.type] ?? 'backlog'))
 }
 
 /** Linear's kinds of state → our status groups (triage is where new issues wait, so it counts as backlog) */
-export const STATE_GROUPS: Record<string, StatusGroup> = { triage: 'backlog', backlog: 'backlog', unstarted: 'unstarted', started: 'started', completed: 'completed', canceled: 'canceled' }
+export const STATE_GROUPS: Record<string, StatusGroup> = { triage: 'backlog', backlog: 'backlog', unstarted: 'unstarted', started: 'started', completed: 'completed', canceled: 'canceled', duplicate: 'canceled' }
 
 const PROJECT_STATES: Record<string, Project['status']> = {
   backlog: 'backlog',
@@ -181,6 +181,8 @@ export interface Existing {
   views?: Record<string, View>
   /** the workspace's own statuses */
   statuses?: Record<string, CustomStatus>
+  /** what the workspace changed about built-in statuses */
+  builtinStatuses?: Record<string, BuiltinStatus>
 }
 
 export interface ImportResult {
@@ -256,11 +258,13 @@ export function buildImport(data: LinearData, choices: ImportChoices, ws: Existi
   // teams: new ones get a file; ones that are already here stay as they are
   const members = new Map<string, Set<string>>()
   for (const i of issues) for (const p of [login(i.assignee), login(i.creator)]) if (p && !isGuest(p)) members.set(i.team.id, (members.get(i.team.id) ?? new Set()).add(p))
+  // written once the statuses are known (a team's default status is one of them)
+  const teamFiles = new Map<string, { team: Team; fresh: boolean; changed: boolean }>()
   teams.forEach((t: LTeam, n) => {
     const here = ws.teams[keyOf(t)]
     if (here) {
       // remember which Linear team it is, so the next import picks it again
-      if (linearIdOf(here) !== t.id) files.set(paths.team(here.key), jsonToFile({ ...here, linearId: t.id }))
+      teamFiles.set(here.key, { team: { ...here, linearId: t.id } as Team, fresh: false, changed: linearIdOf(here) !== t.id })
       return
     }
     const team: Team & { linearId: string } = {
@@ -271,7 +275,7 @@ export function buildImport(data: LinearData, choices: ImportChoices, ws: Existi
       createdAt: now,
       linearId: t.id,
     }
-    files.set(paths.team(team.key), jsonToFile(team))
+    teamFiles.set(team.key, { team, fresh: true, changed: true })
     counts.teams++
   })
 
@@ -322,7 +326,16 @@ export function buildImport(data: LinearData, choices: ImportChoices, ws: Existi
       }
       status = { ...found, teams: [...found.teams, team] }
     } else {
-      status = { id: newId(), name: st.name, group: STATE_GROUPS[st.type] ?? 'backlog', color: st.color ?? '#8a8f98', position: st.position ?? 0, teams: [team] }
+      status = {
+        id: newId(),
+        name: st.name,
+        group: STATE_GROUPS[st.type] ?? 'backlog',
+        color: st.color ?? '#8a8f98',
+        position: st.position ?? 0,
+        teams: [team],
+        ...(st.description?.trim() && { description: st.description.trim() }),
+        ...(st.type === 'triage' && { triage: true }),
+      }
       counts.statuses++
     }
     files.set(paths.status(status.id), jsonToFile(status))
@@ -330,7 +343,50 @@ export function buildImport(data: LinearData, choices: ImportChoices, ws: Existi
     statusByName.set(status.name.toLowerCase(), status)
     statusId.set(st.id, status.id)
   }
-  const everyStatus: Status[] = workflow(statuses.values())
+  // a duplicate state, whatever it's called, is the built-in Duplicate
+  for (const st of teamStates) if (st.type === 'duplicate') statusId.set(st.id, 'duplicate')
+
+  // each team's workflow: the built-in statuses its Linear workflow doesn't have are left out of it (never Duplicate)
+  const builtins = new Map(Object.values(ws.builtinStatuses ?? {}).map((b) => [b.id as string, b]))
+  const chosenKeys = new Set(teams.map(keyOf))
+  for (const id of BUILTIN_STATUS_IDS) {
+    if (id === 'duplicate') continue
+    const lacking = teams.filter((t) => {
+      const mine = teamStates.filter((st) => st.team!.id === t.id)
+      return mine.length > 0 && !mine.some((st) => statusId.get(st.id) === id)
+    })
+    const before = builtins.get(id)?.hiddenIn ?? []
+    const hiddenIn = [...new Set([...before.filter((k) => !chosenKeys.has(k)), ...lacking.map(keyOf)])].sort()
+    if (JSON.stringify(hiddenIn) === JSON.stringify([...before].sort())) continue
+    const next = { ...builtins.get(id), id, hiddenIn } as BuiltinStatus
+    builtins.set(id, next)
+    files.set(paths.builtinStatus(id), jsonToFile(next))
+  }
+
+  // each team's settings from Linear: triage, default status, auto-close, auto-archive, parent and sub-issues. A team
+  // that's already here keeps what it has set.
+  for (const t of teams) {
+    const entry = teamFiles.get(keyOf(t))!
+    const fromLinear: Partial<Team> = {
+      ...(t.triageEnabled && { triage: true }),
+      ...(t.defaultIssueState && statusId.get(t.defaultIssueState.id) && { defaultStatus: statusId.get(t.defaultIssueState.id) }),
+      ...(typeof t.autoClosePeriod === 'number' && t.autoClosePeriod > 0 && { autoClose: Math.round(t.autoClosePeriod) }),
+      ...(typeof t.autoArchivePeriod === 'number' && { autoArchive: Math.round(t.autoArchivePeriod) }),
+      ...(t.autoCloseParentIssues && { closeParentWithSubIssues: true }),
+      ...(t.autoCloseChildIssues && { closeSubIssuesWithParent: true }),
+    }
+    for (const [k, v] of Object.entries(fromLinear) as [keyof Team, never][]) {
+      if (entry.fresh || entry.team[k] === undefined) {
+        entry.team = { ...entry.team, [k]: v }
+        entry.changed = true
+      }
+    }
+    if (entry.changed) files.set(paths.team(entry.team.key), jsonToFile(entry.team))
+  }
+
+  const everyStatus: Status[] = workflow(statuses.values(), { builtins: builtins.values() })
+  // what the files are written with: they name a built-in stand-in for each of these statuses, so older versions of
+  // the app can read them (backwards compatibility, see src/data/files.ts). Always pass it to the writers below.
   const findStatus: FindStatus = (id) => everyStatus.find((s) => s.id === id) ?? statusOf(id)
 
   // projects: the ones these teams' issues belong to, or that belong to these teams
@@ -409,7 +465,7 @@ export function buildImport(data: LinearData, choices: ImportChoices, ws: Existi
   // new issues finished longer ago than their team keeps finished issues go straight into the archive
   const toArchive = new Map<string, ArchivedIssue>()
   const archiveBefore = (team: string) => {
-    const months = ws.teams[team]?.autoArchive ?? AUTO_ARCHIVE_MONTHS
+    const months = (teamFiles.get(team)?.team ?? ws.teams[team])?.autoArchive ?? AUTO_ARCHIVE_MONTHS
     if (!months) return null
     const d = new Date(now)
     d.setMonth(d.getMonth() - months)

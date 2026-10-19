@@ -6,7 +6,7 @@
  * `.passthrough()` keeps fields we don't know yet, so an older app never deletes what a newer one wrote.
  */
 import { z } from 'zod'
-import { PRIORITY_IDS, STATUS_GROUPS } from './status'
+import { BUILTIN_STATUS_IDS, PRIORITY_IDS, STATUS_GROUPS } from './status'
 
 /** Bump only together with a MAJOR release and a migration (see CLAUDE.md). */
 export const FORMAT_VERSION = 1
@@ -69,9 +69,33 @@ export const customStatusSchema = z
     position: z.number().optional(),
     /** the teams that use it (keys); missing or empty = every team */
     teams: z.array(z.string()).optional(),
+    /** what it means, in a sentence */
+    description: z.string().optional(),
+    /** a status of the Triage category, where new issues wait to be looked at (Linear's triage); its group is backlog */
+    triage: z.boolean().optional(),
   })
   .passthrough()
 export type CustomStatus = z.infer<typeof customStatusSchema>
+
+/**
+ * builtin-statuses/<id>.json: what the workspace changed about a built-in status (its name, colour, description, place).
+ * Only these: issue files keep the built-in id, so older versions of the app read them as before and just show the
+ * default name. Not in statuses/: a version that knows statuses/ but not this would list the status twice.
+ */
+export const builtinStatusSchema = z
+  .object({
+    id: z.enum(BUILTIN_STATUS_IDS),
+    name: z.string().optional(),
+    color: z.string().optional(),
+    /** an empty one hides the built-in description */
+    description: z.string().optional(),
+    /** its place among the statuses of its category, lowest first */
+    position: z.number().optional(),
+    /** teams whose workflow leaves it out */
+    hiddenIn: z.array(z.string()).optional(),
+  })
+  .passthrough()
+export type BuiltinStatus = z.infer<typeof builtinStatusSchema>
 
 /** months after which finished issues are archived, unless a team says otherwise (team.autoArchive) */
 export const AUTO_ARCHIVE_MONTHS = 6
@@ -88,6 +112,16 @@ export const teamSchema = z
     lastNumber: z.number().int().optional(),
     /** finished issues are archived this many months after they were finished; 0 = never; missing = 6 */
     autoArchive: z.number().int().nonnegative().optional(),
+    /** where new issues start (a status in its workflow); missing = Todo */
+    defaultStatus: z.string().optional(),
+    /** issues from people outside the team start in Triage, to be accepted, declined or marked as duplicates */
+    triage: z.boolean().optional(),
+    /** open issues not started and untouched this many months are closed (Canceled); 0 or missing = never */
+    autoClose: z.number().int().nonnegative().optional(),
+    /** a parent issue is done once all its sub-issues are */
+    closeParentWithSubIssues: z.boolean().optional(),
+    /** closing a parent issue closes its open sub-issues the same way */
+    closeSubIssuesWithParent: z.boolean().optional(),
   })
   .passthrough()
 export type Team = z.infer<typeof teamSchema>
@@ -98,11 +132,16 @@ export const issueFieldsSchema = z
     id: z.string(),
     number: z.number().int().positive(),
     title: z.string(),
-    /** a built-in status id ("in_progress") or the id of one of statuses/ */
+    /**
+     * In the file, always a built-in status id ("in_progress"): versions before workspace statuses only accept
+     * those, and skip (or, in the archive, drop) an issue with anything else. In memory, the real status, which can be
+     * one of statuses/ (src/data/files.ts turns one into the other).
+     */
     status: z.string().min(1),
     /**
      * a status of the workspace's own (statuses/<id>.json). `status` then holds the built-in one standing in for it
      * (`as`), for versions of the app that don't know workspace statuses; one of those changing `status` ends it.
+     * Backwards compatibility: don't remove or simplify this (CLAUDE.md, docs/architecture.md "Older versions").
      */
     customStatus: z.object({ id: z.string(), as: z.string() }).passthrough().optional(),
     priority: z.union(PRIORITY_IDS.map((p) => z.literal(p))),
@@ -125,6 +164,9 @@ export const issueFieldsSchema = z
     subscribers: z.array(login).optional(),
     /** people who asked not to follow it */
     unsubscribed: z.array(login).optional(),
+    /** snoozed in Triage until this moment, unless it changes before (`snoozedAt` is when it was snoozed) */
+    snoozedUntil: iso.optional(),
+    snoozedAt: iso.optional(),
     /** the numbers it had before it moved to another team ("WEB-2"), so old links and mentions still find it */
     formerRefs: z.array(z.string()).optional(),
   })
@@ -206,6 +248,7 @@ export const filtersSchema = z
     /**
      * statuses of the workspace's own; `statuses` holds the built-in one standing in for each (`as`), for versions of
      * the app that don't know them. `added`: that stand-in is there only for it, not chosen itself.
+     * Backwards compatibility: don't remove or simplify this (CLAUDE.md, docs/architecture.md "Older versions").
      */
     customStatuses: z.array(z.object({ id: z.string(), as: z.string(), added: z.boolean().optional() }).passthrough()).optional(),
   })
@@ -252,7 +295,7 @@ export const inboxItemSchema = z
     comment: z.string().optional(),
     /** the new status (status); for a status of the workspace's own, the built-in one standing in for it */
     status: z.string().optional(),
-    /** the new status, when it's one of the workspace's own */
+    /** the new status, when it's one of the workspace's own (`status` holds its stand-in, for older versions) */
     customStatus: z.string().optional(),
   })
   .passthrough()

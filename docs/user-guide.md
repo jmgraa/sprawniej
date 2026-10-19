@@ -20,13 +20,20 @@ The first time you open your team's issues, four short tips show you around. You
 
 ### Your name
 
-Teammates see the name from your GitHub profile. To go by another one here, open **Settings and people** and
-type it under **Your account**; it saves by itself. Your GitHub profile stays as it is. **Use your GitHub name**
+Teammates see the name from your GitHub profile. To go by another one here, open **Settings › Account** and
+type it; it saves by itself. Your GitHub profile stays as it is. **Use your GitHub name**
 puts the GitHub one back.
+
+### Settings
+
+**Settings** (the menu under your name, bottom left, or `⌘K`) has a page for each part, in the menu on its left:
+**Account** (your name, switching workspace, signing out) and, for the workspace, **General** (its name),
+**People**, **Labels**, **Statuses**, **Archive** and **Import from Linear**. On a phone, Settings shows that menu
+first.
 
 ### Inviting someone
 
-Open the menu under your name (bottom left) and choose **Settings and people**. Type their GitHub username and press
+Open the menu under your name (bottom left), choose **Settings**, then **People**. Type their GitHub username and press
 **Invite**. A join link made just for them appears below: copy it and send it to them. Their link is also next to
 their name in the list until they join. A long list comes in pages of 10 (**Previous** and **Next** below it), and
 **Search people** finds anyone by name or username, even with a typo or without Polish letters. (Only the
@@ -94,9 +101,40 @@ in any app. Nothing is ever really lost: every earlier version stays in the work
 | Canceled | We decided not to do it. |
 | Duplicate | Someone already reported the same thing. |
 
-A workspace can have statuses of its own on top of these, like **Blocked**: the Linear import brings each team's
-statuses over as they are. Each one is a kind of the statuses above (not started, in progress, finished, canceled), so
-it gets that kind's icon in its own colour and shows on the same tab. A team only offers the statuses it uses.
+Each team has its own **workflow**: the statuses above (it can leave some out) and any of its own, like **Blocked**.
+The Linear import brings each team's workflow over as it is. Every status sits in one of the fixed categories:
+Triage, Backlog, Unstarted, Started, Completed, Canceled and Duplicate. The category decides its icon (in its own
+colour), which tab shows its issues and whether they count as closed; a status can't change category. The further
+along a started status is, the fuller its circle (In Progress is half full, In Review three quarters).
+
+**Settings › Statuses** shows one team's workflow (pick the team at the top), by category, with how many of its
+issues are in each status. **＋** next to a category adds a status (if another team has one of that name, it's
+shared). Drag any status by its handle (left of it) to another place in its category. Its **⋯** menu has:
+
+- **Edit**: name, colour and description, for every team that has the status; changes save as you type.
+- **Make default**: new issues in this team start here (marked *Default*; Todo at first).
+- **Reset name and colour**, for a renamed built-in status.
+- **Remove…**: takes it out of this team's workflow (its category has to keep one). You pick where the team's issues in
+  it go. A status of your own that no team has any more is gone.
+
+Below the workflow: **Triage** and the team's **Automations**.
+
+### Triage
+
+With **Triage** on (Settings › Statuses), issues that people outside the team create start in **Triage**, on a tab of
+its own on the team's Issues page; they don't show anywhere else until someone deals with them. On such an issue
+(or by right-clicking it): **Accept** moves it to the team's default status, **Decline** cancels it, **Mark as
+duplicate** points it at the original and moves it to Duplicate, and **Snooze** hides it from Triage until tomorrow,
+next week or next month, or until it changes. Turning Triage off moves the issues still waiting to Backlog.
+
+### Automations
+
+Each team chooses (Settings › Statuses, under Automations):
+
+- **Auto-close**: issues not started yet (Triage, Backlog, Unstarted) that nobody touched for 1 to 12 months are
+  canceled. Not while they're in an unfinished project, due later, or have open sub-issues.
+- **Close the parent with its sub-issues**: once every sub-issue is closed, the parent moves to Done.
+- **Close sub-issues with their parent**: closing a parent closes its open sub-issues the same way.
 
 ### Priority
 
@@ -159,6 +197,10 @@ press and hold an issue for a moment, then drag it.
 everything between the last one you picked and this one. Drag any picked issue and the others come along, side by
 side. The bar at the bottom changes the status, priority, assignee, labels or estimate of all of them (or archives
 or deletes them); `S`, `P`, `A`, `L` and `E` do the same. `Esc` lets go of them.
+
+**Right-click an issue** (on a phone, press and hold without moving) for a menu: open it, copy its number or link,
+change its status, priority, assignee, labels or estimate, archive it or delete it. Right-click one of several picked
+issues and the menu works on all of them.
 
 **Display** (next to List / Board) changes how the page looks, just for you:
 
