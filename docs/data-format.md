@@ -15,6 +15,8 @@ people/<login>.json                      one person (written by that person)
 people/~<name>.json                      someone the Linear import brought who hasn't joined (written by the import)
 labels/<id>.json                         one label
 statuses/<id>.json                       one status of the workspace's own (on top of the built-in ones)
+builtin-statuses/<id>.json               what the workspace changed about a built-in status (name, colour, place)
+status-categories/<id>.json              one category of statuses of the workspace's own
 teams/<KEY>/team.json                    one team
 teams/<KEY>/issues/<id>.md               one issue
 teams/<KEY>/archive/<YYYY-MM>.jsonl      archived issues of that month, with their comments (one per line)
@@ -190,6 +192,33 @@ Files never name one of these in `status` alone: they name the built-in status o
 (`backlog`, `todo`, `in_progress`, `done`, `canceled`) and add the real one next to it (`customStatus`). A version
 of Sprawniej from before these statuses reads every file, shows the issue under the stand-in and keeps the real
 status when it saves; if it changes the status, its change wins.
+
+`category` (optional) puts it in one of `status-categories/`, which must work like its `group`.
+
+## builtin-statuses/<id>.json
+
+```json
+{ "id": "todo", "name": "To do", "color": "#26b5ce", "description": "Next up", "position": 2 }
+```
+
+Changes to a built-in status; `id` is one of the built-in ids, every other field is optional (an empty
+`description` hides the built-in one). Issues keep the built-in id in `status`, so older versions read them as before
+and only show the default name. These never go in `statuses/`: a version that knows that folder would list the status
+twice.
+
+`position` orders all statuses of a category together, built-in ones and the workspace's own; a built-in status
+without one comes before the others.
+
+## status-categories/<id>.json
+
+```json
+{ "id": "01J9…", "name": "Blocked", "kind": "started", "position": 1 }
+```
+
+A category of statuses of the workspace's own. `kind` is the group it works like (`backlog`, `unstarted`, `started`,
+`completed`, `canceled`): its statuses have that `group`, its icon and its tabs, and files name that group's
+stand-in for them. It comes right after the built-in category of its kind (several by `position`). Deleting it leaves
+its statuses in the built-in category of their group.
 
 ## projects/<id>.json
 

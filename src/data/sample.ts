@@ -158,6 +158,8 @@ export function sampleData(): DataState {
     people: byKey(people, (p) => p.login),
     labels: byKey(labels, (l) => l.id),
     statuses: {},
+    builtinStatuses: {},
+    statusCategories: {},
     teams: byKey(teams, (t) => t.key),
     archive: {},
     archiveLoaded: false,

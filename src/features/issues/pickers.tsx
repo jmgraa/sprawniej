@@ -9,20 +9,23 @@ import { PersonAvatar } from '@/components/Avatar'
 import type { PickerItem } from '@/components/Picker'
 import { issueRef, useData } from '@/data/store'
 import { isGuest, type Issue } from '@/model/schema'
-import { ESTIMATES, PRIORITY_ORDER, PRIORITY_NAMES, workflow, type Priority, type StatusId } from '@/model/status'
+import { ESTIMATES, PRIORITY_ORDER, PRIORITY_NAMES, workflow, type Priority, type Status, type StatusId } from '@/model/status'
 import { EstimateIcon } from './DueDate'
 import { estimateName } from './format'
 import { PriorityIcon, StatusIcon } from './icons'
 
+/** every status in order, with what the workspace changed and added (redraws when that changes) */
+export function useWorkflow(): Status[] {
+  const [custom, builtins, categories] = useData(useShallow((s) => [s.statuses, s.builtinStatuses, s.statusCategories]))
+  return useMemo(() => workflow(Object.values(custom), { builtins: Object.values(builtins), categories: Object.values(categories) }), [custom, builtins, categories])
+}
+
 /** the statuses a team uses (without a team, every status in the workspace) */
 export function useStatusItems(team?: string): PickerItem<StatusId>[] {
-  const custom = useData((s) => s.statuses)
+  const all = useWorkflow()
   return useMemo(
-    () =>
-      workflow(Object.values(custom))
-        .filter((s) => !team || !s.teams || s.teams.includes(team))
-        .map((s) => ({ value: s.id, label: s.name, icon: <StatusIcon status={s.id} /> })),
-    [custom, team],
+    () => all.filter((s) => !team || !s.teams || s.teams.includes(team)).map((s) => ({ value: s.id, label: s.name, icon: <StatusIcon status={s.id} /> })),
+    [all, team],
   )
 }
 

@@ -34,8 +34,9 @@ Read before changing things:
     conflict.
   - Before releasing a format change, run the old (`main`) and new builds side by side on a throwaway workspace,
     edit from the old one, and check the new one still sees everything (docs/architecture.md, "Older versions").
-- **Priorities and the built-in statuses are fixed** (`src/model/status.ts`). A workspace's own statuses
-  (`statuses/<id>.json`) come on top, each in one of the fixed groups; the Linear import brings them.
+- **Priorities, the built-in status ids and the five status groups are fixed** (`src/model/status.ts`). A workspace
+  can rename, recolour and reorder built-in statuses (`builtin-statuses/`), add its own statuses (`statuses/`, the
+  Linear import brings them) and its own categories (`status-categories/`), each working like one of the groups.
 - **Classic tokens only.** No fine-grained tokens, no OAuth app, no proxy server.
 - **No agents or AI features.**
 

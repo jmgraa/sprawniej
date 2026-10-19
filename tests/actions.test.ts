@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
-import { createIssue, createProject, createStatus, createView, deleteProject, deleteStatus, reorderStatuses, updateStatus, updateView } from '@/data/actions'
+import { createIssue, createProject, createStatus, createStatusCategory, createView, deleteProject, deleteStatus, deleteStatusCategory, reorderStatuses, resetBuiltinStatus, updateStatus, updateView } from '@/data/actions'
+import { paths } from '@/data/files'
 import { allStatuses } from '@/model/status'
 import { DEFAULT_DISPLAY } from '@/data/displays'
 import { resetProjection } from '@/data/project'
@@ -82,5 +83,39 @@ describe('statuses of the workspace’s own', () => {
     deleteStatus(blocked.id)
     expect(useData.getState().statuses[blocked.id]).toBeUndefined()
     expect(useData.getState().issues[issue.id].status).toBe('canceled')
+  })
+})
+
+describe('built-in statuses and categories', () => {
+  const team = { key: 'ENG', name: 'Engineering', emoji: '🚀', members: ['ana'], createdAt: 'x' }
+  const names = (category: string) => allStatuses().filter((s) => s.category === category).map((s) => s.name)
+  test('a built-in status can be renamed, recoloured and reset; its issues keep the built-in id', () => {
+    useData.setState({ teams: { ENG: team } })
+    updateStatus('todo', { name: 'To do', color: '#26b5ce', description: 'Next up' })
+    expect(allStatuses().find((s) => s.id === 'todo')).toMatchObject({ name: 'To do', color: '#26b5ce', description: 'Next up' })
+    // never in statuses/: a version that knows statuses/ but not builtin-statuses/ would list Todo twice
+    expect(paths.builtinStatus('todo')).toBe('builtin-statuses/todo.json')
+    expect(useData.getState().statuses).toEqual({})
+    const issue = createIssue({ team: 'ENG', title: 'Next', status: 'todo' })
+    expect(useData.getState().issues[issue.id].status).toBe('todo')
+    resetBuiltinStatus('todo')
+    expect(allStatuses().find((s) => s.id === 'todo')?.name).toBe('Todo')
+  })
+  test('built-in and own statuses are ordered together', () => {
+    const qa = createStatus('started', 'QA')!
+    expect(names('started')).toEqual(['In Progress', 'In Review', 'QA'])
+    reorderStatuses(['in_progress', qa.id, 'in_review'])
+    expect(names('started')).toEqual(['In Progress', 'QA', 'In Review'])
+  })
+  test('a category of the workspace’s own works like a built-in group and comes after it', () => {
+    const blocked = createStatusCategory('Blocked', 'started')!
+    expect(createStatusCategory('started', 'backlog')).toBeUndefined() // a built-in category's name
+    const waiting = createStatus('started', 'Waiting on design', blocked.id)!
+    const order = allStatuses().map((s) => s.category)
+    expect(order.indexOf(blocked.id)).toBeGreaterThan(order.lastIndexOf('started'))
+    expect(order.indexOf(blocked.id)).toBeLessThan(order.indexOf('completed'))
+    expect(allStatuses().find((s) => s.id === waiting.id)).toMatchObject({ group: 'started', category: blocked.id })
+    deleteStatusCategory(blocked.id)
+    expect(allStatuses().find((s) => s.id === waiting.id)).toMatchObject({ group: 'started', category: 'started' })
   })
 })

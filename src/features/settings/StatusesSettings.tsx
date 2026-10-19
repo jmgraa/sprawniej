@@ -1,10 +1,11 @@
 /**
- * Settings › Statuses: every status, by kind, in one card. The built-in ones are shown with how many issues they
- * have; the workspace's own (usually brought by the Linear import) can be dragged into another order by their handle,
- * and edited or deleted from their ⋯ menu. ＋ on a kind adds a new one.
+ * Settings › Statuses: every status, category by category, in one card. Any status can be dragged into another place
+ * in its category by its handle and edited from its ⋯ menu (built-in ones too: name, colour, description); the
+ * workspace's own can also be limited to some teams and deleted. ＋ on a category adds a status to it, and the
+ * workspace can add categories of its own, each working like one of the built-in kinds.
  */
 import { useState, type CSSProperties } from 'react'
-import { GripVertical, MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react'
+import { GripVertical, MoreHorizontal, Pencil, Plus, RotateCcw, Trash2 } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
@@ -12,27 +13,35 @@ import { CSS } from '@dnd-kit/utilities'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { InlineText } from '@/components/InlineText'
 import { Picker } from '@/components/Picker'
-import { createStatus, deleteStatus, LABEL_COLORS, reorderStatuses, statusNameFree, statusUses, updateStatus } from '@/data/actions'
+import {
+  createStatus,
+  createStatusCategory,
+  deleteStatus,
+  deleteStatusCategory,
+  LABEL_COLORS,
+  renameStatusCategory,
+  reorderStatuses,
+  resetBuiltinStatus,
+  statusNameFree,
+  statusUses,
+  updateStatus,
+} from '@/data/actions'
 import { useData } from '@/data/store'
-import { STAND_IN, statusOf, workflow, type Status, type StatusGroup } from '@/model/status'
+import { BUILTIN_CATEGORIES, STAND_IN, STATUS_GROUPS, categoriesOf, statusOf, type Category, type Status, type StatusGroup } from '@/model/status'
 import { StatusIcon } from '@/features/issues/icons'
+import { useWorkflow } from '@/features/issues/pickers'
 import { Button } from '@/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/ui/dropdown-menu'
+import { Input } from '@/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select'
 import { cn } from '@/lib/utils'
-
-/** the card's sections: one per kind, with Duplicate on its own (it can't have company) */
-const SECTIONS: { title: string; group: StatusGroup; shows: (s: Status) => boolean; canAdd: boolean }[] = [
-  { title: 'Backlog', group: 'backlog', shows: (s) => s.group === 'backlog', canAdd: true },
-  { title: 'Unstarted', group: 'unstarted', shows: (s) => s.group === 'unstarted', canAdd: true },
-  { title: 'Started', group: 'started', shows: (s) => s.group === 'started', canAdd: true },
-  { title: 'Completed', group: 'completed', shows: (s) => s.group === 'completed', canAdd: true },
-  { title: 'Canceled', group: 'canceled', shows: (s) => s.group === 'canceled' && s.id !== 'duplicate', canAdd: true },
-  { title: 'Duplicate', group: 'canceled', shows: (s) => s.id === 'duplicate', canAdd: false },
-]
 
 /** new issues start here */
 const DEFAULT_STATUS = 'todo'
+
+/** what a category of the workspace's own works like, in words */
+const KIND_NAMES = Object.fromEntries(BUILTIN_CATEGORIES.filter((c) => c.id !== 'duplicate').map((c) => [c.kind, c.name])) as Record<StatusGroup, string>
 
 /** the status's icon on a soft square of its own colour */
 function Tile({ status, faded }: { status: string; faded?: boolean }) {
@@ -64,15 +73,6 @@ function TeamsNote({ status }: { status: Status }) {
   const teams = useData((s) => s.teams)
   if (!status.teams?.length) return null
   return <span className="hidden shrink-0 text-sm text-muted-foreground sm:inline">{status.teams.map((k) => teams[k]?.name ?? k).join(', ')}</span>
-}
-
-function BuiltInRow({ status, uses }: { status: Status; uses: number }) {
-  return (
-    <li className="flex items-center gap-3 px-2 py-2.5">
-      <Tile status={status.id} />
-      <Details status={status} uses={uses} />
-    </li>
-  )
 }
 
 function ColorTile({ status }: { status: Status }) {
@@ -113,9 +113,13 @@ function TeamsPicker({ status }: { status: Status }) {
   )
 }
 
-/** a status of the workspace's own: handle to drag it, ⋯ to edit or delete it; editing changes it in place */
-function CustomRow({ status, uses, onDelete }: { status: Status; uses: number; onDelete: () => void }) {
+/** one status: a handle to drag it, ⋯ to edit (or delete or reset) it; editing changes it in place */
+function Row({ status, uses, onDelete }: { status: Status; uses: number; onDelete: () => void }) {
   const [editing, setEditing] = useState(false)
+  const changed = useData((s) => {
+    const b = s.builtinStatuses[status.id]
+    return !!b && (b.name !== undefined || b.color !== undefined || b.description !== undefined)
+  })
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: status.id, disabled: editing })
   const style: CSSProperties = { transform: CSS.Translate.toString(transform), transition }
   return (
@@ -139,7 +143,7 @@ function CustomRow({ status, uses, onDelete }: { status: Status; uses: number; o
             <InlineText value={status.name} onSave={(v) => updateStatus(status.id, { name: v })} allowed={(v) => statusNameFree(v, status.id)} label={`Name of ${status.name}`} required autoFocus className="h-7 text-[15px]" />
             <InlineText value={status.description ?? ''} onSave={(v) => updateStatus(status.id, { description: v })} placeholder="Add a description" label={`Description of ${status.name}`} className="h-6 text-sm text-muted-foreground" />
           </span>
-          <TeamsPicker status={status} />
+          {status.custom && <TeamsPicker status={status} />}
           <Button variant="outline" size="sm" onClick={() => setEditing(false)}>
             Done
           </Button>
@@ -159,9 +163,16 @@ function CustomRow({ status, uses, onDelete }: { status: Status; uses: number; o
               <DropdownMenuItem onSelect={() => setEditing(true)}>
                 <Pencil /> Edit
               </DropdownMenuItem>
-              <DropdownMenuItem variant="destructive" onSelect={onDelete}>
-                <Trash2 /> Delete…
-              </DropdownMenuItem>
+              {!status.custom && changed && (
+                <DropdownMenuItem onSelect={() => resetBuiltinStatus(status.id)}>
+                  <RotateCcw /> Reset name and colour
+                </DropdownMenuItem>
+              )}
+              {status.custom && (
+                <DropdownMenuItem variant="destructive" onSelect={onDelete}>
+                  <Trash2 /> Delete…
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </>
@@ -170,48 +181,75 @@ function CustomRow({ status, uses, onDelete }: { status: Status; uses: number; o
   )
 }
 
-function Section({ title, group, list, canAdd, uses, onDelete }: { title: string; group: StatusGroup; list: Status[]; canAdd: boolean; uses: (id: string) => number; onDelete: (s: Status) => void }) {
-  const [adding, setAdding] = useState(false)
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }))
-  const own = list.filter((s) => s.custom).map((s) => s.id)
-  function dropped({ active, over }: DragEndEvent) {
-    if (!over || active.id === over.id) return
-    reorderStatuses(arrayMove(own, own.indexOf(String(active.id)), own.indexOf(String(over.id))))
-  }
+function CategoryHeader({ category, onAdd, onDelete }: { category: Category; onAdd?: () => void; onDelete: () => void }) {
+  const [renaming, setRenaming] = useState(false)
   return (
-    <section>
-      <div className="flex h-10 items-center rounded-md bg-accent/50 pr-1.5 pl-4">
-        <h3 className="text-[15px] text-muted-foreground">{title}</h3>
-        {canAdd && (
-          <Button variant="ghost" size="icon-sm" className="ml-auto text-muted-foreground" onClick={() => setAdding(true)} aria-label={`Add a ${title.toLowerCase()} status`}>
+    <div className="group/head flex h-10 items-center gap-1 rounded-md bg-accent/50 pr-1.5 pl-4">
+      {renaming ? (
+        <InlineText value={category.name} onSave={(v) => renameStatusCategory(category.id, v)} onDone={() => setRenaming(false)} label={`Name of ${category.name}`} required autoFocus className="h-8 text-[15px]" />
+      ) : (
+        <h3 className="truncate text-[15px] text-muted-foreground">
+          {category.name}
+          {category.custom && <span className="text-muted-foreground/60"> · works like {KIND_NAMES[category.kind]}</span>}
+        </h3>
+      )}
+      <span className="ml-auto flex items-center">
+        {category.custom && !renaming && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon-sm" className="text-muted-foreground [@media(hover:hover)]:opacity-0 group-hover/head:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100" aria-label={`More for ${category.name}`}>
+                <MoreHorizontal />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onSelect={() => setRenaming(true)}>
+                <Pencil /> Rename
+              </DropdownMenuItem>
+              <DropdownMenuItem variant="destructive" onSelect={onDelete}>
+                <Trash2 /> Delete category…
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+        {onAdd && (
+          <Button variant="ghost" size="icon-sm" className="text-muted-foreground" onClick={onAdd} aria-label={`Add a status to ${category.name}`}>
             <Plus />
           </Button>
         )}
-      </div>
+      </span>
+    </div>
+  )
+}
+
+function Section({ category, list, uses, onDelete, onDeleteCategory }: { category: Category; list: Status[]; uses: (id: string) => number; onDelete: (s: Status) => void; onDeleteCategory: () => void }) {
+  const [adding, setAdding] = useState(false)
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }))
+  const ids = list.map((s) => s.id)
+  function dropped({ active, over }: DragEndEvent) {
+    if (!over || active.id === over.id) return
+    reorderStatuses(arrayMove(ids, ids.indexOf(String(active.id)), ids.indexOf(String(over.id))))
+  }
+  return (
+    <section>
+      <CategoryHeader category={category} onAdd={category.id === 'duplicate' ? undefined : () => setAdding(true)} onDelete={onDeleteCategory} />
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={dropped}>
         <ul className="flex flex-col divide-y divide-border/60 py-1">
-          {list
-            .filter((s) => !s.custom)
-            .map((s) => (
-              <BuiltInRow key={s.id} status={s} uses={uses(s.id)} />
+          <SortableContext items={ids} strategy={verticalListSortingStrategy}>
+            {list.map((s) => (
+              <Row key={s.id} status={s} uses={uses(s.id)} onDelete={() => onDelete(s)} />
             ))}
-          <SortableContext items={own} strategy={verticalListSortingStrategy}>
-            {list
-              .filter((s) => s.custom)
-              .map((s) => (
-                <CustomRow key={s.id} status={s} uses={uses(s.id)} onDelete={() => onDelete(s)} />
-              ))}
           </SortableContext>
+          {!list.length && !adding && <li className="px-2 py-3 text-sm text-muted-foreground">No statuses yet. Add one with ＋.</li>}
           {adding && (
             <li className="flex items-center gap-3 px-2 py-2.5">
-              <Tile status={STAND_IN[group]} faded />
+              <Tile status={STAND_IN[category.kind]} faded />
               <InlineText
                 value=""
                 autoFocus
                 placeholder="New status name"
                 label="New status name"
                 allowed={(v) => statusNameFree(v)}
-                onSave={(v) => v.trim() && createStatus(group, v)}
+                onSave={(v) => v.trim() && createStatus(category.kind, v, category.custom ? category.id : undefined)}
                 onDone={() => setAdding(false)}
                 className="h-8 text-[15px]"
               />
@@ -223,25 +261,86 @@ function Section({ title, group, list, canAdd, uses, onDelete }: { title: string
   )
 }
 
+/** the last line of the card: name a category and pick which built-in kind it works like */
+function NewCategory() {
+  const [open, setOpen] = useState(false)
+  const [name, setName] = useState('')
+  const [kind, setKind] = useState<StatusGroup>('started')
+  if (!open) {
+    return (
+      <Button variant="ghost" className="w-fit text-muted-foreground" onClick={() => setOpen(true)}>
+        <Plus /> New category
+      </Button>
+    )
+  }
+  return (
+    <form
+      className="flex flex-wrap items-center gap-2 px-1 py-1"
+      onSubmit={(e) => {
+        e.preventDefault()
+        if (createStatusCategory(name, kind)) {
+          setName('')
+          setOpen(false)
+        }
+      }}
+    >
+      <Input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Category name, like Blocked" aria-label="Category name" className="h-9 max-w-64" />
+      <span className="text-sm text-muted-foreground">works like</span>
+      <Select value={kind} onValueChange={(v) => setKind(v as StatusGroup)}>
+        <SelectTrigger className="h-9 w-36" aria-label="Works like">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {STATUS_GROUPS.map((g) => (
+            <SelectItem key={g} value={g}>
+              {KIND_NAMES[g]}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Button type="submit" variant="outline" disabled={!name.trim()}>
+        Add
+      </Button>
+      <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
+        Cancel
+      </Button>
+    </form>
+  )
+}
+
 export function StatusesSettings() {
-  const own = useData((s) => s.statuses)
+  const own = useData((s) => s.statusCategories)
   const issues = useData((s) => s.issues)
+  const statuses = useWorkflow()
   const [deleting, setDeleting] = useState<Status | null>(null)
-  const statuses = workflow(Object.values(own))
+  const [deletingCategory, setDeletingCategory] = useState<Category | null>(null)
   const uses = (id: string) => Object.values(issues).filter((i) => i.status === id).length
+  const homeOf = (kind: StatusGroup) => BUILTIN_CATEGORIES.find((c) => c.kind === kind)!.name
 
   return (
     <>
       <div className="flex flex-col gap-2 rounded-xl border bg-accent/10 p-3 pl-6 sm:pl-3">
-        {SECTIONS.map((sec) => (
-          <Section key={sec.title} title={sec.title} group={sec.group} list={statuses.filter(sec.shows)} canAdd={sec.canAdd} uses={uses} onDelete={setDeleting} />
+        {categoriesOf(Object.values(own)).map((c) => (
+          <Section key={c.id} category={c} list={statuses.filter((s) => s.category === c.id)} uses={uses} onDelete={setDeleting} onDeleteCategory={() => setDeletingCategory(c)} />
         ))}
+        <NewCategory />
       </div>
       {deleting && (
         <ConfirmDialog open onOpenChange={(o) => !o && setDeleting(null)} title={`Delete the status “${deleting.name}”?`} confirm="Delete status" onConfirm={() => deleteStatus(deleting.id)}>
           {statusUses(deleting.id)
             ? `${statusUses(deleting.id) === 1 ? 'The 1 issue' : `The ${statusUses(deleting.id)} issues`} in it (and any archived ones) move to ${statusOf(STAND_IN[deleting.group]).name}.`
             : `No issue is in it. Any archived ones move to ${statusOf(STAND_IN[deleting.group]).name}.`}
+        </ConfirmDialog>
+      )}
+      {deletingCategory && (
+        <ConfirmDialog
+          open
+          onOpenChange={(o) => !o && setDeletingCategory(null)}
+          title={`Delete the category “${deletingCategory.name}”?`}
+          confirm="Delete category"
+          onConfirm={() => deleteStatusCategory(deletingCategory.id)}
+        >
+          Its statuses stay, and move to {homeOf(deletingCategory.kind)}. No issue changes.
         </ConfirmDialog>
       )}
     </>

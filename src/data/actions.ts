@@ -8,9 +8,9 @@
  */
 import { generateKeyBetween } from 'fractional-indexing'
 import { ulid } from 'ulid'
-import type { ArchivedIssue, Comment, CustomStatus, Display, Filters, InboxItem, Issue, Label, Person, Project, ReadState, Team, View } from '@/model/schema'
+import type { ArchivedIssue, BuiltinStatus, Comment, CustomStatus, StatusCategory, Display, Filters, InboxItem, Issue, Label, Person, Project, ReadState, Team, View } from '@/model/schema'
 import { AUTO_ARCHIVE_MONTHS, FORMAT_VERSION, isGuest } from '@/model/schema'
-import { PRIORITY_NAMES, STAND_IN, allStatuses, statusOf, type StatusGroup } from '@/model/status'
+import { BUILTIN_CATEGORIES, PRIORITY_NAMES, STAND_IN, allStatuses, isBuiltIn, statusOf, type StatusGroup } from '@/model/status'
 import { BINARY_PREFIX } from '@/github/api'
 import { workspace } from '@/sync/engine'
 import { archiveLinesUnread, archiveMonth, archiveToFile, classify, commentToFile as commentFile, inboxToFile, issueToFile, jsonToFile, parseArchive, paths, viewToFile } from './files'
@@ -574,33 +574,87 @@ export function deleteLabel(id: string) {
 export const statusNameFree = (name: string, except?: string) =>
   !!name.trim() && !allStatuses().some((s) => s.id !== except && s.name.toLowerCase() === name.trim().toLowerCase())
 
-/** a new status of the workspace's own, last in its group, for every team */
-export function createStatus(group: StatusGroup, name: string): CustomStatus | undefined {
+/** a new status of the workspace's own, last in its category (its group's own if none), for every team */
+export function createStatus(group: StatusGroup, name: string, category?: string): CustomStatus | undefined {
   if (!statusNameFree(name)) return
-  const own = Object.values(useData.getState().statuses)
-  const last = Math.max(0, ...own.filter((s) => s.group === group).map((s) => s.position ?? 0))
-  const status: CustomStatus = { id: ulid(), name: name.trim(), group, color: LABEL_COLORS[own.length % LABEL_COLORS.length], position: last + 1 }
+  const st = useData.getState()
+  const own = Object.values(st.statuses)
+  // after everything in its category (built-in ones without a place of their own come first anyway)
+  const section = allStatuses().filter((s) => s.category === (category ?? group))
+  const last = Math.max(0, ...section.map((s) => (s.custom ? st.statuses[s.id]?.position : st.builtinStatuses[s.id]?.position) ?? 0))
+  const status: CustomStatus = { id: ulid(), name: name.trim(), group, color: LABEL_COLORS[own.length % LABEL_COLORS.length], position: last + 1, ...(category && { category }) }
   save(one(paths.status(status.id), jsonToFile(status)), `Add status ${status.name}`)
   return status
 }
 
-export function updateStatus(id: string, patch: Partial<Pick<CustomStatus, 'name' | 'color' | 'description' | 'teams'>>) {
-  const status = useData.getState().statuses[id]
-  if (!status || (patch.name !== undefined && !statusNameFree(patch.name, id))) return
+type StatusPatch = Partial<Pick<CustomStatus, 'name' | 'color' | 'description' | 'teams'>>
+
+/** change a status: one of the workspace's own in its file; a built-in one in builtin-statuses/ (not its teams) */
+export function updateStatus(id: string, patch: StatusPatch) {
+  const s = useData.getState()
+  if (patch.name !== undefined && !statusNameFree(patch.name, id)) return
+  if (isBuiltIn(id)) {
+    const { teams: _, ...rest } = patch
+    const next: BuiltinStatus = { ...s.builtinStatuses[id], id: id as BuiltinStatus['id'], ...rest, ...(rest.name !== undefined && { name: rest.name.trim() }) }
+    save(one(paths.builtinStatus(id), jsonToFile(next)), `Edit status ${next.name ?? statusOf(id).name}`)
+    return
+  }
+  const status = s.statuses[id]
+  if (!status) return
   const next: CustomStatus = { ...status, ...patch, ...(patch.name !== undefined && { name: patch.name.trim() }) }
   if (!next.description?.trim()) delete next.description
   if (!next.teams?.length) delete next.teams
   save(one(paths.status(id), jsonToFile(next)), `Edit status ${next.name}`)
 }
 
-/** put the workspace's own statuses of one group in this order (positions become 1, 2, 3…) */
+/** a built-in status back to its own name, colour and description (it stays where it was put) */
+export function resetBuiltinStatus(id: string) {
+  const b = useData.getState().builtinStatuses[id]
+  if (!b) return
+  save(one(paths.builtinStatus(id), b.position === undefined ? null : jsonToFile({ id: b.id, position: b.position })), `Reset status ${statusOf(id).name}`)
+}
+
+/** put the statuses of one category in this order (positions become 1, 2, 3…), built-in ones included */
 export function reorderStatuses(ids: string[]) {
-  const statuses = useData.getState().statuses
+  const s = useData.getState()
   const files = new Map<string, string | null>()
   ids.forEach((id, n) => {
-    if (statuses[id] && statuses[id].position !== n + 1) files.set(paths.status(id), jsonToFile({ ...statuses[id], position: n + 1 }))
+    if (isBuiltIn(id)) {
+      if (s.builtinStatuses[id]?.position !== n + 1) files.set(paths.builtinStatus(id), jsonToFile({ ...s.builtinStatuses[id], id, position: n + 1 }))
+    } else if (s.statuses[id] && s.statuses[id].position !== n + 1) files.set(paths.status(id), jsonToFile({ ...s.statuses[id], position: n + 1 }))
   })
-  if (files.size) save(files, `Reorder statuses: ${ids.map((id) => statuses[id]?.name).join(', ')}`)
+  if (files.size) save(files, `Reorder statuses: ${ids.map((id) => statusOf(id).name).join(', ')}`)
+}
+
+/** a category of the workspace's own, working like one of the groups; it comes after the others of that kind */
+export function createStatusCategory(name: string, kind: StatusGroup): StatusCategory | undefined {
+  const cats = Object.values(useData.getState().statusCategories)
+  if (!name.trim() || [...BUILTIN_CATEGORIES, ...cats].some((c) => c.name.toLowerCase() === name.trim().toLowerCase())) return
+  const last = Math.max(0, ...cats.filter((c) => c.kind === kind).map((c) => c.position ?? 0))
+  const category: StatusCategory = { id: ulid(), name: name.trim(), kind, position: last + 1 }
+  save(one(paths.statusCategory(category.id), jsonToFile(category)), `Add status category ${category.name}`)
+  return category
+}
+
+export function renameStatusCategory(id: string, name: string) {
+  const s = useData.getState()
+  const category = s.statusCategories[id]
+  if (!category || !name.trim() || [...BUILTIN_CATEGORIES, ...Object.values(s.statusCategories)].some((c) => c.id !== id && c.name.toLowerCase() === name.trim().toLowerCase())) return
+  save(one(paths.statusCategory(id), jsonToFile({ ...category, name: name.trim() })), `Rename status category ${category.name} to ${name.trim()}`)
+}
+
+/** delete a category of the workspace's own; its statuses stay, in the built-in category of their group */
+export function deleteStatusCategory(id: string) {
+  const s = useData.getState()
+  const category = s.statusCategories[id]
+  if (!category) return
+  const files = new Map<string, string | null>([[paths.statusCategory(id), null]])
+  for (const st of Object.values(s.statuses)) {
+    if (st.category !== id) continue
+    const { category: _, ...rest } = st
+    files.set(paths.status(st.id), jsonToFile(rest))
+  }
+  save(files, `Delete status category ${category.name}`)
 }
 
 /** how many issues have a status, archived ones not counted */

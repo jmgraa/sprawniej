@@ -7,6 +7,7 @@ import type { z } from 'zod'
 import { STAND_IN, isBuiltIn, statusOf, type FindStatus } from '@/model/status'
 import {
   archivedIssueSchema,
+  builtinStatusSchema,
   commentFieldsSchema,
   customStatusSchema,
   inboxItemSchema,
@@ -15,10 +16,12 @@ import {
   personSchema,
   projectSchema,
   readStateSchema,
+  statusCategorySchema,
   teamSchema,
   viewSchema,
   workspaceSchema,
   type ArchivedIssue,
+  type BuiltinStatus,
   type Comment,
   type CustomStatus,
   type Filters,
@@ -28,6 +31,7 @@ import {
   type Person,
   type Project,
   type ReadState,
+  type StatusCategory,
   type Team,
   type View,
   type Workspace,
@@ -40,6 +44,8 @@ export const paths = {
   person: (login: string) => `people/${login}.json`,
   label: (id: string) => `labels/${id}.json`,
   status: (id: string) => `statuses/${id}.json`,
+  builtinStatus: (id: string) => `builtin-statuses/${id}.json`,
+  statusCategory: (id: string) => `status-categories/${id}.json`,
   team: (key: string) => `teams/${key}/team.json`,
   issue: (i: Pick<Issue, 'team' | 'id'>) => `teams/${i.team}/issues/${i.id}.md`,
   /** archived issues of a team, one file per month (see archiveMonth) */
@@ -57,6 +63,8 @@ export type Parsed =
   | { kind: 'person'; value: Person }
   | { kind: 'label'; value: Label }
   | { kind: 'status'; value: CustomStatus }
+  | { kind: 'builtinStatus'; value: BuiltinStatus }
+  | { kind: 'statusCategory'; value: StatusCategory }
   | { kind: 'team'; value: Team }
   | { kind: 'issue'; value: Issue }
   | { kind: 'archive'; team: string; value: ArchivedIssue[] }
@@ -73,6 +81,8 @@ export function classify(path: string): { kind: Parsed['kind']; parts: string[] 
     [/^people\/([^/]+)\.json$/, 'person'],
     [/^labels\/([^/]+)\.json$/, 'label'],
     [/^statuses\/([^/]+)\.json$/, 'status'],
+    [/^builtin-statuses\/([^/]+)\.json$/, 'builtinStatus'],
+    [/^status-categories\/([^/]+)\.json$/, 'statusCategory'],
     [/^teams\/([^/]+)\/team\.json$/, 'team'],
     [/^teams\/([^/]+)\/issues\/([^/]+)\.md$/, 'issue'],
     [/^teams\/([^/]+)\/archive\/([^/]+)\.jsonl$/, 'archive'],
@@ -336,6 +346,10 @@ export function parseFile(path: string, text: string): Parsed | null {
       return { kind: 'label', value: check(labelSchema, json(), path) }
     case 'status':
       return { kind: 'status', value: check(customStatusSchema, json(), path) }
+    case 'builtinStatus':
+      return { kind: 'builtinStatus', value: check(builtinStatusSchema, json(), path) }
+    case 'statusCategory':
+      return { kind: 'statusCategory', value: check(statusCategorySchema, json(), path) }
     case 'team':
       return { kind: 'team', value: check(teamSchema, json(), path) }
     case 'issue': {

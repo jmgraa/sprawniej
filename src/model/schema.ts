@@ -6,7 +6,7 @@
  * `.passthrough()` keeps fields we don't know yet, so an older app never deletes what a newer one wrote.
  */
 import { z } from 'zod'
-import { PRIORITY_IDS, STATUS_GROUPS } from './status'
+import { BUILTIN_STATUS_IDS, PRIORITY_IDS, STATUS_GROUPS } from './status'
 
 /** Bump only together with a MAJOR release and a migration (see CLAUDE.md). */
 export const FORMAT_VERSION = 1
@@ -73,9 +73,44 @@ export const customStatusSchema = z
     description: z.string().optional(),
     /** where new issues wait to be looked at (Linear's triage); a backlog status with its own icon */
     triage: z.boolean().optional(),
+    /** the category of the workspace's own it's in (status-categories/<id>.json, of the same group); missing = its group's */
+    category: z.string().optional(),
   })
   .passthrough()
 export type CustomStatus = z.infer<typeof customStatusSchema>
+
+/**
+ * builtin-statuses/<id>.json: what the workspace changed about a built-in status (its name, colour, description, place).
+ * Only these: issue files keep the built-in id, so older versions of the app read them as before and just show the
+ * default name. Not in statuses/: a version that knows statuses/ but not this would list the status twice.
+ */
+export const builtinStatusSchema = z
+  .object({
+    id: z.enum(BUILTIN_STATUS_IDS),
+    name: z.string().optional(),
+    color: z.string().optional(),
+    /** an empty one hides the built-in description */
+    description: z.string().optional(),
+    /** its place among the statuses of its category, lowest first */
+    position: z.number().optional(),
+  })
+  .passthrough()
+export type BuiltinStatus = z.infer<typeof builtinStatusSchema>
+
+/**
+ * status-categories/<id>.json: a category of statuses of the workspace's own. It works like one of the built-in groups
+ * (`kind`): its statuses get that group (so files keep a stand-in older versions understand), its icon and its tabs.
+ */
+export const statusCategorySchema = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    kind: z.enum(STATUS_GROUPS),
+    /** its place among the workspace's categories of the same kind, which come after the built-in one */
+    position: z.number().optional(),
+  })
+  .passthrough()
+export type StatusCategory = z.infer<typeof statusCategorySchema>
 
 /** months after which finished issues are archived, unless a team says otherwise (team.autoArchive) */
 export const AUTO_ARCHIVE_MONTHS = 6
