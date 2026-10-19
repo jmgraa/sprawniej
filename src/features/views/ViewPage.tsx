@@ -43,8 +43,9 @@ export function ViewPage() {
           onFilters: (filters) => updateView(view.id, { filters }),
           onDisplay: (patch) => updateView(view.id, { display: { ...view.display, ...patch } }),
         }}
-        header={
+        header={(tools) => (
           <PageHeader
+            aside={tools}
             kind="view"
             emoji={view.emoji}
             onEmoji={(emoji) => updateView(view.id, { emoji })}
@@ -68,7 +69,7 @@ export function ViewPage() {
               {team ? `${team.emoji} ${team.name}` : 'Whole workspace'} · made by {owner?.name ?? view.owner} · changes here change the view for everyone
             </p>
           </PageHeader>
-        }
+        )}
       />
       <ConfirmDialog
         open={confirmDelete}

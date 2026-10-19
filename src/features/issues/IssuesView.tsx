@@ -1,6 +1,6 @@
 /**
- * A set of issues with a toolbar: optional tabs on the left; Filter, Display and List / Board on the right; the
- * active filters below. The page decides the fixed part (`filters`, e.g. this team). What a person filters on top
+ * A set of issues with a toolbar: optional tabs on the left; Filter, Display and List / Board on the right (beside
+ * the description, on a page with a header); the active filters below. The page decides the fixed part (`filters`, e.g. this team). What a person filters on top
  * stays on this page until they leave, or, on a saved view, is saved into the view.
  */
 import { useMemo, useState, type ReactNode } from 'react'
@@ -32,8 +32,8 @@ interface Props {
   tab?: IssueTab
   baseDisplay?: Partial<Display>
   left?: ReactNode
-  /** above the toolbar (a view's or project's name and details) */
-  header?: ReactNode
+  /** a view's or project's name and details, given the toolbar buttons to show beside its description */
+  header?: (tools: ReactNode) => ReactNode
   empty?: ReactNode
   /** filter kinds the page decides already */
   hideFilters?: FilterKey[]
@@ -95,26 +95,33 @@ export function IssuesView({ page, filters, tab = 'all', baseDisplay, left, head
       </Button>
     ) : undefined
 
+  const tools = (
+    <div className="flex items-center gap-2">
+      <FilterButton hide={hideFilters} onPick={setOpenFilter} />
+      <DisplayOptions display={display} onChange={setDisplay} onReset={saved ? undefined : mine.resetDisplay} tab={tab} />
+      <Segmented
+        tour="layout"
+        label="Layout"
+        value={display.layout}
+        onChange={(layout) => setDisplay({ layout })}
+        options={[
+          { value: 'list', name: 'List', label: <><List /> <span className="hidden sm:inline">List</span></> },
+          { value: 'board', name: 'Board', label: <><Columns3 /> <span className="hidden sm:inline">Board</span></> },
+        ]}
+      />
+    </div>
+  )
+
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 px-4 md:px-8 pt-6">
-      {header}
-      <div className="flex flex-wrap items-center gap-2 md:gap-3">
-        {left}
-        <div className="ml-auto flex items-center gap-2">
-          <FilterButton hide={hideFilters} onPick={setOpenFilter} />
-          <DisplayOptions display={display} onChange={setDisplay} onReset={saved ? undefined : mine.resetDisplay} tab={tab} />
-          <Segmented
-            tour="layout"
-            label="Layout"
-            value={display.layout}
-            onChange={(layout) => setDisplay({ layout })}
-            options={[
-              { value: 'list', name: 'List', label: <><List /> <span className="hidden sm:inline">List</span></> },
-              { value: 'board', name: 'Board', label: <><Columns3 /> <span className="hidden sm:inline">Board</span></> },
-            ]}
-          />
+      {header ? (
+        header(tools)
+      ) : (
+        <div className="flex flex-wrap items-center gap-2 md:gap-3">
+          {left}
+          <div className="ml-auto">{tools}</div>
         </div>
-      </div>
+      )}
       <FilterChips filters={extra} onChange={setExtra} hide={hideFilters} open={openFilter} setOpen={setOpenFilter} extra={saveAsView} />
       {shown.length === 0 ? (
         filtering ? (
