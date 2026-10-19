@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils'
 
 /**
  * A status's icon: its group decides the shape (dashed for backlog, empty for not started, a pie for started, a tick
- * for done, a cross for canceled, arrows for triage), its own colour fills it in
+ * for done, a cross for canceled, two squares for duplicate, arrows for triage), its own colour fills it in
  */
 export function StatusIcon({ status, className }: { status: StatusId; className?: string }) {
   const { color, group, name, triage } = statusOf(status)
@@ -23,6 +23,16 @@ export function StatusIcon({ status, className }: { status: StatusId; className?
       <svg viewBox="0 0 14 14" className={box} aria-label={name}>
         <circle cx="7" cy="7" r="6" fill={color} />
         <path d="M4.3 7.2 6.2 9l3.5-3.8" fill="none" stroke="#18181b" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    )
+  }
+  if (status === 'duplicate') {
+    // two overlapping squares: the same thing twice
+    return (
+      <svg viewBox="0 0 14 14" className={box} aria-label={name}>
+        <circle cx="7" cy="7" r="6" fill={color} />
+        <rect x="4" y="4" width="4.2" height="4.2" rx="0.9" fill="none" stroke="#18181b" strokeWidth="1.2" />
+        <path d="M6.6 9.9h2.4a.9.9 0 0 0 .9-.9V6.6" fill="none" stroke="#18181b" strokeWidth="1.2" strokeLinecap="round" />
       </svg>
     )
   }
