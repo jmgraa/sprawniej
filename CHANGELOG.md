@@ -3,6 +3,13 @@
 Versions are `MAJOR.MINOR.PATCH`: major = the repo format or the way you work changes, minor = a new feature,
 patch = fixes and polish. Written from `src/version.ts` by `bun scripts/changelog.ts`.
 
+## 1.9.0: Your own statuses
+*2026-10-19*
+
+- The Linear import brings each team’s statuses over as they are, like Blocked or QA, with their colours
+- Pick them on an issue, group and filter by them, and see them as board columns
+- Filter, Display and List / Board now sit next to a view’s or project’s description
+
 ## 1.8.5: What’s new
 *2026-10-15*
 
