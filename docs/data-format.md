@@ -14,6 +14,7 @@ sprawniej.json                           the workspace: name, format version
 people/<login>.json                      one person (written by that person)
 people/~<name>.json                      someone the Linear import brought who hasn't joined (written by the import)
 labels/<id>.json                         one label
+statuses/<id>.json                       one status of the workspace's own (on top of the built-in ones)
 teams/<KEY>/team.json                    one team
 teams/<KEY>/issues/<id>.md               one issue
 teams/<KEY>/archive/<YYYY-MM>.jsonl      archived issues of that month, with their comments (one per line)
@@ -113,6 +114,7 @@ Charts should be easier to read at a glance.
 | --- | --- |
 | `number` | Shown as `ENG-12`. Final once it reached GitHub. |
 | `status` | `backlog`, `todo`, `in_progress`, `in_review`, `done`, `canceled`, `duplicate` |
+| `customStatus` | optional, `{ id, as }`: a status of the workspace's own (see `statuses/<id>.json`); `status` then holds `as`, the built-in status standing in for it |
 | `priority` | `0` none, `1` urgent, `2` high, `3` medium, `4` low |
 | `assignee` | A GitHub login, or `null` |
 | `labels` | Label ids |
@@ -172,6 +174,22 @@ Only the author edits or deletes their comment.
 { "id": "01J9…", "name": "Bug", "color": "#eb5757" }
 ```
 
+## statuses/<id>.json
+
+```json
+{ "id": "01J9…", "name": "Blocked", "group": "canceled", "color": "#eb5757", "position": 6, "teams": ["EXP"] }
+```
+
+A status on top of the built-in ones, usually brought over by the Linear import. `group` is one of `backlog`,
+`unstarted`, `started`, `completed`, `canceled`: it decides the icon, where the status sits (after the built-in
+statuses of its group, then by `position`) and which tab shows its issues. `teams` lists the teams that use it;
+missing or empty means every team.
+
+Files never name one of these in `status` alone: they name the built-in status of its group standing in for it
+(`backlog`, `todo`, `in_progress`, `done`, `canceled`) and add the real one next to it (`customStatus`). A version
+of Sprawniej from before these statuses reads every file, shows the issue under the stand-in and keeps the real
+status when it saves; if it changes the status, its change wins.
+
 ## projects/<id>.json
 
 ```json
@@ -197,7 +215,8 @@ Only the author edits or deletes their comment.
 
 `team: null` makes a workspace view. Filters left out match everything. Filters: `statuses`, `assignees` (`null` =
 no one), `subscribers` (people following the issue), `priorities`, `labels`, `projects` (`null` = none), `teams`. Inside one filter any value matches;
-different filters must all match. `grouping`: `status`, `assignee`, `priority`, `project`, `none`.
+different filters must all match. A status of the workspace's own goes in `customStatuses` as `{ id, as, added }`,
+with its stand-in `as` in `statuses` (`added: true` when the stand-in is there only for it). `grouping`: `status`, `assignee`, `priority`, `project`, `none`.
 `ordering`: `manual`, `priority`, `updated`, `created`.
 
 ## inbox/<login>/<id>.json
@@ -210,7 +229,7 @@ Written by the person who caused it, so it never clashes with anything.
 
 `type`: `assigned`, `mentioned`, `commented`, `status`. `comment` holds the comment id for `mentioned` (when the
 mention is in a comment) and `commented`. `status` holds the new status for `status` (sent when an issue is done or
-canceled).
+canceled); for a status of the workspace's own, `status` is its stand-in and `customStatus` its id.
 
 Notes don't stay forever: when someone opens the workspace, their read notes older than 30 days and unread ones
 older than 90 days are deleted, and so is anyone's note older than 180 days. Deleting an issue or a comment also

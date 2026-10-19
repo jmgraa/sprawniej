@@ -23,7 +23,8 @@ Read before changing things:
   needed, so old work doesn't slow anything down (docs/architecture.md, "Archive").
 - **The repo format is a promise.** Changing what a file means or where it lives is a MAJOR release with a migration.
   Unknown fields must survive a read and write (schemas use `.passthrough()`).
-- **Statuses and priorities are fixed** (`src/model/status.ts`). Don't add custom workflows.
+- **Priorities and the built-in statuses are fixed** (`src/model/status.ts`). A workspace's own statuses
+  (`statuses/<id>.json`) come on top, each in one of the fixed groups; the Linear import brings them.
 - **Classic tokens only.** No fine-grained tokens, no OAuth app, no proxy server.
 - **No agents or AI features.**
 

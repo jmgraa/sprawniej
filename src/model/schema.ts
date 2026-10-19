@@ -6,7 +6,7 @@
  * `.passthrough()` keeps fields we don't know yet, so an older app never deletes what a newer one wrote.
  */
 import { z } from 'zod'
-import { PRIORITY_IDS, STATUS_IDS } from './status'
+import { PRIORITY_IDS, STATUS_GROUPS } from './status'
 
 /** Bump only together with a MAJOR release and a migration (see CLAUDE.md). */
 export const FORMAT_VERSION = 1
@@ -57,6 +57,22 @@ export const labelSchema = z
   .passthrough()
 export type Label = z.infer<typeof labelSchema>
 
+/** statuses/<id>.json: a status of the workspace's own, on top of the built-in ones (src/model/status.ts) */
+export const customStatusSchema = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    /** decides its icon, where it sits and which tab shows its issues */
+    group: z.enum(STATUS_GROUPS),
+    color: z.string(),
+    /** its place among the other statuses of its group, lowest first (they all come after the built-in ones) */
+    position: z.number().optional(),
+    /** the teams that use it (keys); missing or empty = every team */
+    teams: z.array(z.string()).optional(),
+  })
+  .passthrough()
+export type CustomStatus = z.infer<typeof customStatusSchema>
+
 /** months after which finished issues are archived, unless a team says otherwise (team.autoArchive) */
 export const AUTO_ARCHIVE_MONTHS = 6
 
@@ -82,7 +98,13 @@ export const issueFieldsSchema = z
     id: z.string(),
     number: z.number().int().positive(),
     title: z.string(),
-    status: z.enum(STATUS_IDS),
+    /** a built-in status id ("in_progress") or the id of one of statuses/ */
+    status: z.string().min(1),
+    /**
+     * a status of the workspace's own (statuses/<id>.json). `status` then holds the built-in one standing in for it
+     * (`as`), for versions of the app that don't know workspace statuses; one of those changing `status` ends it.
+     */
+    customStatus: z.object({ id: z.string(), as: z.string() }).passthrough().optional(),
     priority: z.union(PRIORITY_IDS.map((p) => z.literal(p))),
     assignee: login.nullable(),
     labels: z.array(z.string()),
@@ -174,13 +196,18 @@ export type Ordering = (typeof ORDERINGS)[number]
 export const filtersSchema = z
   .object({
     teams: z.array(z.string()).optional(),
-    statuses: z.array(z.enum(STATUS_IDS)).optional(),
+    statuses: z.array(z.string()).optional(),
     assignees: z.array(login.nullable()).optional(),
     /** people following the issue (see src/data/notify.ts, `followers`) */
     subscribers: z.array(login).optional(),
     priorities: z.array(z.number().int()).optional(),
     labels: z.array(z.string()).optional(),
     projects: z.array(z.string().nullable()).optional(),
+    /**
+     * statuses of the workspace's own; `statuses` holds the built-in one standing in for each (`as`), for versions of
+     * the app that don't know them. `added`: that stand-in is there only for it, not chosen itself.
+     */
+    customStatuses: z.array(z.object({ id: z.string(), as: z.string(), added: z.boolean().optional() }).passthrough()).optional(),
   })
   .passthrough()
 export type Filters = z.infer<typeof filtersSchema>
@@ -223,8 +250,10 @@ export const inboxItemSchema = z
     at: iso,
     /** the comment it's about (mentioned in a comment, commented) */
     comment: z.string().optional(),
-    /** the new status (status) */
-    status: z.enum(STATUS_IDS).optional(),
+    /** the new status (status); for a status of the workspace's own, the built-in one standing in for it */
+    status: z.string().optional(),
+    /** the new status, when it's one of the workspace's own */
+    customStatus: z.string().optional(),
   })
   .passthrough()
 export type InboxItem = z.infer<typeof inboxItemSchema>

@@ -10,6 +10,7 @@ import { LabelChip } from '@/components/LabelChip'
 import { nestChildren, type Group } from '@/data/select'
 import { issueRef, useData } from '@/data/store'
 import type { Display, Issue } from '@/model/schema'
+import { isClosed } from '@/model/status'
 import { cn } from '@/lib/utils'
 import { PriorityIcon, StatusIcon } from './icons'
 import { GroupIcon } from './GroupIcon'
@@ -40,7 +41,7 @@ export function IssueRow({ issue, depth = 0, dragRef, dragProps, style, ghost, l
   const labels = useData((s) => s.labels)
   const picked = useSelection((s) => s.ids.includes(issue.id))
   const carried = useSelection((s) => s.draggingMany) && picked && !lifted
-  const closed = issue.status === 'done' || issue.status === 'canceled' || issue.status === 'duplicate'
+  const closed = isClosed(issue.status)
   return (
     <Link
       ref={dragRef}

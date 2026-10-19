@@ -6,10 +6,10 @@
  * the first time instead of making copies.
  */
 import { generateNKeysBetween } from 'fractional-indexing'
-import { archiveMonth, archiveToFile, commentToFile, issueToFile, jsonToFile, paths } from '@/data/files'
+import { archiveMonth, archiveToFile, commentToFile, issueToFile, jsonToFile, paths, viewToFile } from '@/data/files'
 import { linearIdsOf, linkedPerson, plainName as plain, relinkArchived, relinkIssue, relinkProject, relinkView } from '@/data/relink'
-import { STATUSES, type Priority, type StatusId } from '@/model/status'
-import { AUTO_ARCHIVE_MONTHS, isGuest, type ArchivedIssue, type Comment, type Issue, type Label, type Person, type Project, type Team, type View } from '@/model/schema'
+import { STATUSES, statusOf, workflow, type FindStatus, type Priority, type Status, type StatusGroup, type StatusId } from '@/model/status'
+import { AUTO_ARCHIVE_MONTHS, isGuest, type ArchivedIssue, type Comment, type CustomStatus, type Issue, type Label, type Person, type Project, type Team, type View } from '@/model/schema'
 import { SUBSCRIBERS_READ, type LIssue, type LinearData, type LLabel, type LTeam, type LUser } from './linearApi'
 import { mapViewFilter, type FilterContext } from './linearFilters'
 
@@ -96,11 +96,22 @@ const STATE_TYPES: Record<string, StatusId> = {
   canceled: 'canceled',
 }
 
-/** by name first ("In Review"), then by Linear's kind of state */
-export function mapStatus(state: { name: string; type: string }): StatusId {
-  const name = plain(state.name.replace(/cancelled/i, 'canceled'))
-  return STATUSES.find((s) => plain(s.name) === name)?.id ?? STATE_TYPES[state.type] ?? 'backlog'
+/** the built-in status with this name ("In Review"), if there is one */
+export function builtInStatus(name: string): StatusId | undefined {
+  const plainName = plain(name.replace(/cancelled/i, 'canceled'))
+  return STATUSES.find((s) => plain(s.name) === plainName)?.id
 }
+
+/**
+ * A Linear state → a status here: the one the import made for it (`own`, by Linear state id), the built-in one
+ * with its name, or the built-in one of its kind
+ */
+export function mapStatus(state: { id?: string; name: string; type: string }, own?: Map<string, StatusId>): StatusId {
+  return (state.id && own?.get(state.id)) || (builtInStatus(state.name) ?? STATE_TYPES[state.type] ?? 'backlog')
+}
+
+/** Linear's kinds of state → our status groups (triage is where new issues wait, so it counts as backlog) */
+export const STATE_GROUPS: Record<string, StatusGroup> = { triage: 'backlog', backlog: 'backlog', unstarted: 'unstarted', started: 'started', completed: 'completed', canceled: 'canceled' }
 
 const PROJECT_STATES: Record<string, Project['status']> = {
   backlog: 'backlog',
@@ -168,12 +179,14 @@ export interface Existing {
   /** archived issues (loaded), so a second import knows them too */
   archive?: Record<string, ArchivedIssue>
   views?: Record<string, View>
+  /** the workspace's own statuses */
+  statuses?: Record<string, CustomStatus>
 }
 
 export interface ImportResult {
   files: Map<string, string | null>
   /** `archived`: of the issues, how many are in the archive (finished long ago, or archived here since) */
-  counts: { teams: number; labels: number; projects: number; issues: number; comments: number; archived: number; views: number }
+  counts: { teams: number; labels: number; statuses: number; projects: number; issues: number; comments: number; archived: number; views: number }
   /** imported issues that couldn't keep their number, because the team here already used it */
   renumbered: { from: string; to: string }[]
   /** views whose Linear filters couldn't all come over, by name */
@@ -211,7 +224,7 @@ function orderKeys(issues: LIssue[]): Map<string, string> {
 
 export function buildImport(data: LinearData, choices: ImportChoices, ws: Existing, newId: () => string, now: string): ImportResult {
   const files = new Map<string, string | null>()
-  const counts = { teams: 0, labels: 0, projects: 0, issues: 0, comments: 0, archived: 0, views: 0 }
+  const counts = { teams: 0, labels: 0, statuses: 0, projects: 0, issues: 0, comments: 0, archived: 0, views: 0 }
   const renumbered: ImportResult['renumbered'] = []
   const login = (u: { id: string } | null | undefined) => (u ? (choices.people[u.id] ?? null) : null)
   const teams = data.teams.filter((t) => choices.teamKeys[t.id])
@@ -285,6 +298,40 @@ export function buildImport(data: LinearData, choices: ImportChoices, ws: Existi
     return label.id
   }
   for (const l of data.labels) if (!l.isGroup && usedLabels.has(l.id)) bringLabel(l)
+
+  // statuses: each chosen team's workflow. One with a built-in status's name is that status; any other ("Blocked")
+  // becomes a status of the workspace's own, with Linear's colour and kind. The same name in several teams is one status.
+  const statuses = new Map(Object.values(ws.statuses ?? {}).map((s) => [s.id, s]))
+  const statusByName = new Map([...statuses.values()].map((s) => [s.name.toLowerCase(), s]))
+  const statusId = new Map<string, StatusId>()
+  const teamStates = (data.states ?? []).filter((st) => st.team && teamIds.has(st.team.id)).sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+  for (const st of teamStates) {
+    const builtIn = builtInStatus(st.name)
+    if (builtIn) {
+      statusId.set(st.id, builtIn)
+      continue
+    }
+    const team = keyOf(st.team!)
+    const found = statusByName.get(st.name.toLowerCase())
+    let status: CustomStatus
+    if (found) {
+      // a status every team uses stays that way; one that some teams use gets this team too
+      if (!found.teams?.length || found.teams.includes(team)) {
+        statusId.set(st.id, found.id)
+        continue
+      }
+      status = { ...found, teams: [...found.teams, team] }
+    } else {
+      status = { id: newId(), name: st.name, group: STATE_GROUPS[st.type] ?? 'backlog', color: st.color ?? '#8a8f98', position: st.position ?? 0, teams: [team] }
+      counts.statuses++
+    }
+    files.set(paths.status(status.id), jsonToFile(status))
+    statuses.set(status.id, status)
+    statusByName.set(status.name.toLowerCase(), status)
+    statusId.set(st.id, status.id)
+  }
+  const everyStatus: Status[] = workflow(statuses.values())
+  const findStatus: FindStatus = (id) => everyStatus.find((s) => s.id === id) ?? statusOf(id)
 
   // projects: the ones these teams' issues belong to, or that belong to these teams
   const usedProjects = new Set(issues.flatMap((i) => (i.project ? [i.project.id] : [])))
@@ -394,7 +441,7 @@ export function buildImport(data: LinearData, choices: ImportChoices, ws: Existi
       number,
       title: li.title,
       description: rewriteLinks(li.description ?? '', refs).replace(/\s+$/, ''),
-      status: mapStatus(li.state),
+      status: mapStatus(li.state, statusId),
       priority: (li.priority >= 0 && li.priority <= 4 ? li.priority : 0) as Priority,
       assignee,
       labels: [...new Set(li.labels.nodes.map((l) => labelId.get(l.id)).filter((x): x is string => !!x))],
@@ -412,10 +459,10 @@ export function buildImport(data: LinearData, choices: ImportChoices, ws: Existi
       linearId: li.id,
     }
     const before = archiveBefore(team)
-    if (!old && before && ['done', 'canceled', 'duplicate'].includes(issue.status) && (issue.completedAt ?? issue.updatedAt) < before) {
+    if (!old && before && ['completed', 'canceled'].includes(findStatus(issue.status).group) && (issue.completedAt ?? issue.updatedAt) < before) {
       toArchive.set(issue.id, { ...issue, archivedAt: now, archivedBy: ws.me, comments: [] })
       counts.archived++
-    } else files.set(paths.issue(issue), issueToFile(issue))
+    } else files.set(paths.issue(issue), issueToFile(issue, findStatus))
     pathOfIssue.set(li.id, issue)
     counts.issues++
   }
@@ -471,7 +518,7 @@ export function buildImport(data: LinearData, choices: ImportChoices, ws: Existi
     for (const i of Object.values(ws.issues)) {
       if (imported.has(i.id)) continue
       const next = relinkIssue(i, relink)
-      if (JSON.stringify(next) !== JSON.stringify(i)) files.set(paths.issue(next), issueToFile(next))
+      if (JSON.stringify(next) !== JSON.stringify(i)) files.set(paths.issue(next), issueToFile(next, findStatus))
     }
     const importedProjects = new Set(projectId.values())
     for (const p of Object.values(ws.projects)) {
@@ -482,15 +529,15 @@ export function buildImport(data: LinearData, choices: ImportChoices, ws: Existi
   // archived issues, one file per team and month, next to what those files hold already
   const byFile = new Map<string, ArchivedIssue[]>()
   const into = (a: ArchivedIssue) => {
-    const path = paths.archive(a.team, archiveMonth(a, a.archivedAt))
+    const path = paths.archive(a.team, archiveMonth(a, a.archivedAt, findStatus))
     byFile.set(path, [...(byFile.get(path) ?? []), a])
   }
   toArchive.forEach(into)
   archivedWithNew.forEach(into)
   for (const a of archived) if (!archivedWithNew.has(a.id) && relinkedArchive.has(a.id)) into(a)
   const touched = new Set(byFile.keys())
-  for (const a of archived) if (!archivedWithNew.has(a.id) && !relinkedArchive.has(a.id) && touched.has(paths.archive(a.team, archiveMonth(a, a.archivedAt)))) into(a)
-  for (const [path, records] of byFile) files.set(path, archiveToFile(records))
+  for (const a of archived) if (!archivedWithNew.has(a.id) && !relinkedArchive.has(a.id) && touched.has(paths.archive(a.team, archiveMonth(a, a.archivedAt, findStatus)))) into(a)
+  for (const [path, records] of byFile) files.set(path, archiveToFile(records, [], findStatus))
 
   // views: the chosen teams' and the whole workspace's, with the filters that can come over
   const inexactViews: string[] = []
@@ -498,6 +545,8 @@ export function buildImport(data: LinearData, choices: ImportChoices, ws: Existi
   const viewsByLinear = byLinearId(Object.values(ws.views ?? {}))
   const ctx: FilterContext = {
     states: new Map((data.states ?? []).map((st) => [st.id, st])),
+    status: (st) => mapStatus(st, statusId),
+    statuses: everyStatus,
     // someone matched to "no one" can't stand in a filter: "assigned to Bob" mustn't become "assigned to no one"
     person: (id) => choices.people[id] ?? undefined,
     labels: data.labels,
@@ -515,7 +564,7 @@ export function buildImport(data: LinearData, choices: ImportChoices, ws: Existi
       const id = linearIdOf(v)
       if (id && fromLinear.has(id)) continue
       const next = relinkView(v, relink)
-      if (JSON.stringify(next) !== JSON.stringify(v)) files.set(paths.view(v.id), jsonToFile(next))
+      if (JSON.stringify(next) !== JSON.stringify(v)) files.set(paths.view(v.id), viewToFile(next, findStatus))
     }
   }
   for (const v of data.views ?? []) {
@@ -543,7 +592,7 @@ export function buildImport(data: LinearData, choices: ImportChoices, ws: Existi
       createdAt: old?.createdAt ?? v.createdAt,
       linearId: v.id,
     }
-    files.set(paths.view(view.id), jsonToFile(view))
+    files.set(paths.view(view.id), viewToFile(view, findStatus))
     counts.views++
     if (!exact) inexactViews.push(v.name)
   }

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { parseFile } from '@/data/files'
 import { buildImport, guestLogins, emojiFor, freeKey, guessPerson, involvedUsers, mapStatus, rewriteLinks, type Existing, type ImportChoices } from '@/features/import/linearMap'
-import type { ArchivedIssue, Comment, Issue, Label, Project, Team, View } from '@/model/schema'
+import type { ArchivedIssue, Comment, CustomStatus, Issue, Label, Project, Team, View } from '@/model/schema'
 import { linearFixture as data } from './fixtures/linear'
 
 const person = (login: string, name: string) => ({ login, githubId: 1, name, avatarUrl: '' })
@@ -79,6 +79,7 @@ function read(files: Map<string, string | null>): Existing {
     if (p.kind === 'team') ws.teams[p.value.key] = p.value as Team
     if (p.kind === 'issue') ws.issues[p.value.id] = p.value as Issue
     if (p.kind === 'label') ws.labels[p.value.id] = p.value as Label
+    if (p.kind === 'status') (ws.statuses ??= {})[p.value.id] = p.value as CustomStatus
     if (p.kind === 'project') ws.projects[p.value.id] = p.value as Project
     if (p.kind === 'comment') ws.comments[p.value.issue] = [...(ws.comments[p.value.issue] ?? []), p.value as Comment]
     if (p.kind === 'view') (ws.views ??= {})[p.value.id] = p.value as View
@@ -92,7 +93,7 @@ describe('building the import', () => {
   const byTitle = (t: string) => Object.values(ws.issues).find((i) => i.title === t)!
 
   test('only the chosen team, with numbers, statuses and people', () => {
-    expect(r.counts).toEqual({ teams: 1, labels: 3, projects: 1, issues: 3, comments: 2, archived: 0, views: 9 })
+    expect(r.counts).toEqual({ teams: 1, labels: 3, statuses: 0, projects: 1, issues: 3, comments: 2, archived: 0, views: 9 })
     expect(ws.teams.ENG).toMatchObject({ name: 'Engineering', emoji: '🚀' })
     expect(ws.teams.ENG.members.sort()).toEqual(['ana-n', 'bstone', 'mikolaj'])
     const charts = byTitle('Charts are slow')
@@ -302,4 +303,74 @@ test('a Linear team that joins a team here is remembered', () => {
   const r = buildImport(data, choices, existing, ids(), 'now')
   expect(read(r.files).teams.ENG).toMatchObject({ name: 'Eng', linearId: 't-eng' })
   expect(r.counts.teams).toBe(0)
+})
+
+describe('importing statuses', () => {
+  // each team's workflow, the way Linear sends it: built-in names, and statuses of the team's own
+  const states = [
+    { id: 's-todo', name: 'Todo', type: 'unstarted', color: '#e2e2e2', position: 1, team: { id: 't-eng' } },
+    { id: 's-review', name: 'In Review', type: 'started', color: '#0f783c', position: 3, team: { id: 't-eng' } },
+    { id: 's-qa', name: 'QA', type: 'started', color: '#f2994a', position: 2.5, team: { id: 't-eng' } },
+    { id: 's-blocked', name: 'Blocked', type: 'canceled', color: '#eb5757', position: 6, team: { id: 't-eng' } },
+    { id: 's-triage', name: 'Triage', type: 'triage', color: '#fc7840', position: 0, team: { id: 't-eng' } },
+    { id: 's-des-blocked', name: 'blocked', type: 'canceled', color: '#eb5757', position: 5, team: { id: 't-des' } },
+    { id: 's-des-wait', name: 'Waiting', type: 'unstarted', color: '#bbbbbb', position: 2, team: { id: 't-des' } },
+  ]
+  const withStates = {
+    ...data,
+    states,
+    issues: [
+      ...data.issues,
+      { ...data.issues[0], id: 'i-20', number: 20, title: 'Stuck on the bank', state: { id: 's-blocked', name: 'Blocked', type: 'canceled' }, subscribers: undefined },
+      { ...data.issues[0], id: 'i-21', number: 21, title: 'Testing it', state: { id: 's-qa', name: 'QA', type: 'started' }, subscribers: undefined },
+    ],
+  }
+  const r = buildImport(withStates, choices, empty(), ids(), '2026-03-01T00:00:00.000Z')
+  const ws = read(r.files)
+  const own = Object.values(ws.statuses ?? {})
+  const named = (n: string) => own.find((s) => s.name === n)!
+  const byTitle = (t: string) => Object.values(ws.issues).find((i) => i.title === t)!
+
+  test('a team’s own statuses come over with their name, colour and kind; built-in names stay built-in', () => {
+    expect(own.map((s) => s.name).sort()).toEqual(['Blocked', 'QA', 'Triage'])
+    expect(named('Blocked')).toMatchObject({ group: 'canceled', color: '#eb5757', position: 6, teams: ['ENG'] })
+    expect(named('QA')).toMatchObject({ group: 'started', teams: ['ENG'] })
+    expect(named('Triage')).toMatchObject({ group: 'backlog' })
+    expect(r.counts.statuses).toBe(3)
+    // another team's statuses don't come with a team that wasn't chosen
+    expect(own.some((s) => s.name === 'Waiting')).toBe(false)
+  })
+  test('the files name a built-in status standing in for each of the team’s own, for older versions of the app', () => {
+    const path = [...r.files.keys()].find((f) => r.files.get(f)?.includes('Stuck on the bank'))!
+    const text = r.files.get(path)!
+    expect(text).toContain('status: canceled\n')
+    expect(text).toContain(`customStatus:\n  id: ${named('Blocked').id}\n  as: canceled`)
+  })
+  test('issues keep their exact status', () => {
+    expect(byTitle('Stuck on the bank').status).toBe(named('Blocked').id)
+    expect(byTitle('Testing it').status).toBe(named('QA').id)
+    expect(byTitle('Charts are slow').status).toBe('in_review')
+  })
+  test('a second import reuses them; another team with the same name shares the status', () => {
+    const again = buildImport(withStates, choices, { ...ws, me: 'mikolaj' }, ids(), 'later')
+    expect([...again.files.keys()].filter((f) => f.startsWith('statuses/'))).toEqual([])
+    expect(again.counts.statuses).toBe(0)
+    const both = buildImport(withStates, { ...choices, teamKeys: { 't-eng': 'ENG', 't-des': 'DES' } }, { ...ws, me: 'mikolaj' }, ids(), 'later')
+    const after = read(both.files).statuses ?? {}
+    expect(after[named('Blocked').id]).toMatchObject({ name: 'Blocked', teams: ['ENG', 'DES'] })
+    expect(Object.values(after).map((s) => s.name)).toContain('Waiting')
+  })
+  test('view filters name the imported statuses', () => {
+    const view = { id: 'v-blocked', name: 'Blocked', description: null, icon: null, shared: true, team: null, owner: { id: 'u-ana' }, createdAt: '2026-01-01T00:00:00.000Z' }
+    const filtered = (filterData: unknown) => {
+      const w = read(buildImport({ ...withStates, views: [{ ...view, filterData }] }, choices, empty(), ids(), 'now').files)
+      const blocked = Object.values(w.statuses ?? {}).find((s) => s.name === 'Blocked')!.id
+      return { statuses: Object.values(w.views ?? {})[0].filters.statuses, blocked }
+    }
+    const byId = filtered({ state: { id: { in: ['s-blocked', 's-review'] } } })
+    expect(byId.statuses?.sort()).toEqual([byId.blocked, 'in_review'].sort())
+    // "any canceled kind" takes in the team's own canceled statuses too
+    const byKind = filtered({ state: { type: { eq: 'canceled' } } })
+    expect(byKind.statuses).toEqual(['canceled', 'duplicate', byKind.blocked])
+  })
 })

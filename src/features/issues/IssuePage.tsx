@@ -32,7 +32,7 @@ import { DueChip, DueDatePicker, EstimateIcon } from './DueDate'
 import { estimateName, shortDate } from './format'
 import { SubIssues } from './SubIssues'
 import { TitleField } from './TitleField'
-import { estimateItems, priorityItems, statusItems, useLabelItems, useParentItems, usePeopleItems, useProjectItems } from './pickers'
+import { estimateItems, priorityItems, useLabelItems, useParentItems, usePeopleItems, useProjectItems, useStatusItems } from './pickers'
 
 function Property({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -73,6 +73,7 @@ export function IssuePage() {
   useEffect(() => {
     if (unread.length) markRead(unread)
   }, [unread])
+  const statusItems = useStatusItems(issue?.team)
   const peopleItems = usePeopleItems()
   const followerItems = useMemo(() => peopleItems.filter((p) => p.value !== null) as PickerItem<string>[], [peopleItems])
   const comments = useData((s) => (issue ? s.comments[issue.id] : undefined))

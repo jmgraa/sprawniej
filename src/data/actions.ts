@@ -13,7 +13,7 @@ import { AUTO_ARCHIVE_MONTHS, FORMAT_VERSION, isGuest } from '@/model/schema'
 import { PRIORITY_NAMES, statusOf } from '@/model/status'
 import { BINARY_PREFIX } from '@/github/api'
 import { workspace } from '@/sync/engine'
-import { archiveMonth, archiveToFile, commentToFile as commentFile, issueToFile, jsonToFile, parseArchive, paths } from './files'
+import { archiveLinesUnread, archiveMonth, archiveToFile, commentToFile as commentFile, inboxToFile, issueToFile, jsonToFile, parseArchive, paths, viewToFile } from './files'
 import { commentNotes, followLists, followers, issueNotes, type Note } from './notify'
 import { changedOnly, keyBetween, keysBetween } from './ordering'
 import { applyFiles, archiveFiles, highestArchived, parsedFiles, pathOf } from './project'
@@ -58,7 +58,7 @@ function addNotes(files: Map<string, string | null>, issue: string, notes: Note[
     const item: InboxItem = { id: ulid(), type: n.type, issue, actor: me, at: now() }
     if (n.comment) item.comment = n.comment
     if (n.status) item.status = n.status
-    files.set(paths.inbox(n.to, item.id), jsonToFile(item))
+    files.set(paths.inbox(n.to, item.id), inboxToFile(item))
   }
 }
 
@@ -286,7 +286,7 @@ export function moveIssueToTeam(id: string, team: string): Issue | undefined {
 /** change the records in one archive month file; the change goes into `files` (an emptied file is removed) */
 function editArchive(files: Map<string, string | null>, path: string, team: string, edit: (records: ArchivedIssue[]) => ArchivedIssue[]) {
   const text = files.has(path) ? files.get(path) : (archiveFiles().get(path) ?? null)
-  files.set(path, archiveToFile(edit(text ? parseArchive(path, team, text) : [])))
+  files.set(path, archiveToFile(edit(text ? parseArchive(path, team, text) : []), text ? archiveLinesUnread(path, team, text) : []))
 }
 
 /** which archive files hold an issue (each line starts with its id) */
@@ -577,7 +577,7 @@ function dropFromViews(files: Map<string, string | null>, field: 'labels' | 'pro
     if (!list?.includes(id)) continue
     const rest = list.filter((x) => x !== id)
     if (!rest.length) continue
-    files.set(paths.view(v.id), jsonToFile({ ...v, filters: { ...v.filters, [field]: rest } }))
+    files.set(paths.view(v.id), viewToFile({ ...v, filters: { ...v.filters, [field]: rest } }))
   }
 }
 
@@ -606,7 +606,7 @@ export function createView(input: NewView): View {
     display: input.display,
     createdAt: now(),
   }
-  save(one(paths.view(view.id), jsonToFile(view)), `Create view ${view.emoji} ${view.name}`)
+  save(one(paths.view(view.id), viewToFile(view)), `Create view ${view.emoji} ${view.name}`)
   return view
 }
 
@@ -619,7 +619,7 @@ export function updateView(id: string, patch: ViewPatch) {
   // empty filter lists are left out, so the file stays readable
   next.filters = Object.fromEntries(Object.entries(next.filters).filter(([, v]) => !Array.isArray(v) || v.length > 0))
   const what = patch.filters ? 'filters' : patch.display ? 'display' : patch.name ? 'rename' : 'edit'
-  save(one(paths.view(id), jsonToFile(next)), `View ${next.emoji} ${next.name}: ${what}`)
+  save(one(paths.view(id), viewToFile(next)), `View ${next.emoji} ${next.name}: ${what}`)
 }
 
 export function deleteView(id: string) {

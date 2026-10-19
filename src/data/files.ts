@@ -4,9 +4,11 @@
  */
 import YAML from 'yaml'
 import type { z } from 'zod'
+import { STAND_IN, isBuiltIn, statusOf, type FindStatus } from '@/model/status'
 import {
   archivedIssueSchema,
   commentFieldsSchema,
+  customStatusSchema,
   inboxItemSchema,
   issueFieldsSchema,
   labelSchema,
@@ -18,6 +20,8 @@ import {
   workspaceSchema,
   type ArchivedIssue,
   type Comment,
+  type CustomStatus,
+  type Filters,
   type InboxItem,
   type Issue,
   type Label,
@@ -35,6 +39,7 @@ export const paths = {
   workspace: () => WORKSPACE_FILE,
   person: (login: string) => `people/${login}.json`,
   label: (id: string) => `labels/${id}.json`,
+  status: (id: string) => `statuses/${id}.json`,
   team: (key: string) => `teams/${key}/team.json`,
   issue: (i: Pick<Issue, 'team' | 'id'>) => `teams/${i.team}/issues/${i.id}.md`,
   /** archived issues of a team, one file per month (see archiveMonth) */
@@ -51,6 +56,7 @@ export type Parsed =
   | { kind: 'workspace'; value: Workspace }
   | { kind: 'person'; value: Person }
   | { kind: 'label'; value: Label }
+  | { kind: 'status'; value: CustomStatus }
   | { kind: 'team'; value: Team }
   | { kind: 'issue'; value: Issue }
   | { kind: 'archive'; team: string; value: ArchivedIssue[] }
@@ -66,6 +72,7 @@ export function classify(path: string): { kind: Parsed['kind']; parts: string[] 
     [/^sprawniej\.json$/, 'workspace'],
     [/^people\/([^/]+)\.json$/, 'person'],
     [/^labels\/([^/]+)\.json$/, 'label'],
+    [/^statuses\/([^/]+)\.json$/, 'status'],
     [/^teams\/([^/]+)\/team\.json$/, 'team'],
     [/^teams\/([^/]+)\/issues\/([^/]+)\.md$/, 'issue'],
     [/^teams\/([^/]+)\/archive\/([^/]+)\.jsonl$/, 'archive'],
@@ -167,7 +174,7 @@ export function joinFrontMatter(fields: Record<string, unknown>, body: string): 
 }
 
 /** front matter keys in a fixed, readable order; anything unknown keeps its place after them */
-const ISSUE_ORDER = ['id', 'number', 'title', 'status', 'priority', 'assignee', 'labels', 'project', 'parent', 'dueDate', 'estimate', 'sortOrder', 'createdBy', 'createdAt', 'updatedAt', 'completedAt', 'duplicateOf', 'subscribers', 'unsubscribed']
+const ISSUE_ORDER = ['id', 'number', 'title', 'status', 'customStatus', 'priority', 'assignee', 'labels', 'project', 'parent', 'dueDate', 'estimate', 'sortOrder', 'createdBy', 'createdAt', 'updatedAt', 'completedAt', 'duplicateOf', 'subscribers', 'unsubscribed']
 
 function ordered(obj: Record<string, unknown>, order: string[], drop: string[] = []): Record<string, unknown> {
   const out: Record<string, unknown> = {}
@@ -176,9 +183,59 @@ function ordered(obj: Record<string, unknown>, order: string[], drop: string[] =
   return out
 }
 
-export function issueToFile(issue: Issue): string {
-  const { description, ...rest } = issue
+// ---------- statuses of the workspace's own ----------
+// Files name a built-in status that stands in for one of the workspace's own (STAND_IN), next to the real one, so a
+// version of the app from before workspace statuses reads every file, shows the issue under the stand-in and keeps
+// the real one when it saves. In memory, `status` is simply the real one. `find` tells a status's group (the import
+// passes the statuses it is about to write).
+
+function statusOut<T extends { status: string; customStatus?: unknown }>(fields: T, find: FindStatus): T {
+  const { customStatus: _, ...rest } = fields
+  if (isBuiltIn(fields.status)) return rest as T
+  const as = STAND_IN[find(fields.status).group]
+  return { ...rest, status: as, customStatus: { id: fields.status, as } } as T
+}
+
+/** the real status; if an older version changed `status` since, its change wins */
+function statusIn<T extends { status: string; customStatus?: { id: string; as: string } }>(fields: T): T {
+  const { customStatus, ...rest } = fields
+  return (customStatus && customStatus.as === rest.status ? { ...rest, status: customStatus.id } : rest) as T
+}
+
+function filtersOut(f: Filters, find: FindStatus): Filters {
+  const { customStatuses: _, ...rest } = f
+  const own = (f.statuses ?? []).filter((id) => !isBuiltIn(id))
+  if (!own.length) return rest
+  const builtIn = f.statuses!.filter(isBuiltIn)
+  const customStatuses = own.map((id) => {
+    const as = STAND_IN[find(id).group]
+    return { id, as, ...(!builtIn.includes(as) && { added: true }) }
+  })
+  return { ...rest, statuses: [...new Set([...builtIn, ...customStatuses.map((c) => c.as)])], customStatuses }
+}
+
+function filtersIn(f: Filters): Filters {
+  const { customStatuses, ...rest } = f
+  if (!customStatuses?.length) return rest
+  // one whose stand-in an older version took out of the filter is gone with it
+  const live = customStatuses.filter((c) => rest.statuses?.includes(c.as))
+  const added = new Set(live.filter((c) => c.added).map((c) => c.as))
+  return { ...rest, statuses: [...(rest.statuses ?? []).filter((s) => !added.has(s)), ...live.map((c) => c.id)] }
+}
+
+export function issueToFile(issue: Issue, find: FindStatus = statusOf): string {
+  const { description, ...rest } = statusOut(issue, find)
   return joinFrontMatter(ordered(rest, ISSUE_ORDER, ['team']), description)
+}
+
+export function viewToFile(view: View, find: FindStatus = statusOf): string {
+  return jsonToFile({ ...view, filters: filtersOut(view.filters, find) })
+}
+
+export function inboxToFile(item: InboxItem, find: FindStatus = statusOf): string {
+  const { customStatus: _, ...rest } = item
+  if (!item.status || isBuiltIn(item.status)) return jsonToFile(rest)
+  return jsonToFile({ ...rest, status: STAND_IN[find(item.status).group], customStatus: item.status })
 }
 
 export function commentToFile(c: Comment): string {
@@ -194,14 +251,14 @@ export const jsonToFile = (value: unknown) => `${JSON.stringify(value, null, 2)}
  * Which month file an archived issue goes in: the month it was finished (so archiving the same issue on two
  * computers picks the same file), or for an issue archived unfinished, the month it was archived.
  */
-export function archiveMonth(issue: Pick<Issue, 'status' | 'completedAt' | 'updatedAt'>, archivedAt: string): string {
-  const closed = ['done', 'canceled', 'duplicate'].includes(issue.status)
+export function archiveMonth(issue: Pick<Issue, 'status' | 'completedAt' | 'updatedAt'>, archivedAt: string, find: FindStatus = statusOf): string {
+  const closed = ['completed', 'canceled'].includes(find(issue.status).group)
   return (closed ? (issue.completedAt ?? issue.updatedAt) : archivedAt).slice(0, 7)
 }
 
 /** one archived issue as a line: its fields in the usual order, then the description and comments */
-export function archivedToLine(a: ArchivedIssue): string {
-  const { description, comments, archivedAt, archivedBy, ...rest } = a
+export function archivedToLine(a: ArchivedIssue, find: FindStatus = statusOf): string {
+  const { description, comments, archivedAt, archivedBy, ...rest } = statusOut(a, find)
   const fields = ordered(rest, ISSUE_ORDER, ['team'])
   return JSON.stringify({
     ...fields,
@@ -212,22 +269,38 @@ export function archivedToLine(a: ArchivedIssue): string {
   })
 }
 
-/** a month file: one issue per line, sorted by id, so files change little and read well side by side */
-export function archiveToFile(records: ArchivedIssue[]): string | null {
-  if (!records.length) return null
-  return `${[...records].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)).map(archivedToLine).join('\n')}\n`
+/**
+ * a month file: one issue per line, sorted by id, so files change little and read well side by side. `unread`: lines
+ * this version couldn't read (see archiveLinesUnread), kept as they are so a newer version's issues aren't lost.
+ */
+export function archiveToFile(records: ArchivedIssue[], unread: string[] = [], find: FindStatus = statusOf): string | null {
+  const lines = [...[...records].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)).map((a) => archivedToLine(a, find)), ...unread]
+  return lines.length ? `${lines.join('\n')}\n` : null
+}
+
+/** the lines of a month file this version can't read (written by a newer one, say) */
+export function archiveLinesUnread(path: string, team: string, text: string): string[] {
+  const read = new Set(parseArchive(path, team, text, true).map((a) => a.id))
+  return text.split('\n').filter((line) => {
+    if (!line.trim()) return false
+    try {
+      return !read.has((JSON.parse(line) as { id?: unknown }).id as string)
+    } catch {
+      return true
+    }
+  })
 }
 
 /** Read a month file. A line that can't be read is skipped with a warning; the rest still count. */
-export function parseArchive(path: string, team: string, text: string): ArchivedIssue[] {
+export function parseArchive(path: string, team: string, text: string, quiet = false): ArchivedIssue[] {
   const out: ArchivedIssue[] = []
   for (const [n, line] of text.split('\n').entries()) {
     if (!line.trim()) continue
     try {
-      const v = check(archivedIssueSchema, JSON.parse(line), `${path} line ${n + 1}`)
+      const v = statusIn(check(archivedIssueSchema, JSON.parse(line), `${path} line ${n + 1}`))
       out.push({ ...v, team, description: v.description.replace(/\s+$/, ''), comments: v.comments.map((c) => ({ ...c, body: c.body.replace(/\s+$/, '') })) })
     } catch (e) {
-      console.warn(`Sprawniej skipped an archived issue it couldn't read: ${(e as Error).message}`)
+      if (!quiet) console.warn(`Sprawniej skipped an archived issue it couldn't read: ${(e as Error).message}`)
     }
   }
   return out
@@ -253,11 +326,13 @@ export function parseFile(path: string, text: string): Parsed | null {
       return { kind: 'person', value: check(personSchema, json(), path) }
     case 'label':
       return { kind: 'label', value: check(labelSchema, json(), path) }
+    case 'status':
+      return { kind: 'status', value: check(customStatusSchema, json(), path) }
     case 'team':
       return { kind: 'team', value: check(teamSchema, json(), path) }
     case 'issue': {
       const { fields, body } = splitFrontMatter(text)
-      const f = check(issueFieldsSchema, fields, path)
+      const f = statusIn(check(issueFieldsSchema, fields, path))
       return { kind: 'issue', value: { ...f, team: c.parts[0], description: body.replace(/\s+$/, '') } }
     }
     case 'archive':
@@ -269,9 +344,11 @@ export function parseFile(path: string, text: string): Parsed | null {
     case 'project':
       return { kind: 'project', value: check(projectSchema, json(), path) }
     case 'view':
-      return { kind: 'view', value: check(viewSchema, json(), path) }
+      const v = check(viewSchema, json(), path)
+      return { kind: 'view', value: { ...v, filters: filtersIn(v.filters) } }
     case 'inbox':
-      return { kind: 'inbox', login: c.parts[0], value: check(inboxItemSchema, json(), path) }
+      const { customStatus, ...n } = check(inboxItemSchema, json(), path)
+      return { kind: 'inbox', login: c.parts[0], value: customStatus ? { ...n, status: customStatus } : n }
     case 'readState':
       return { kind: 'readState', login: c.parts[0], value: check(readStateSchema, json(), path) }
   }

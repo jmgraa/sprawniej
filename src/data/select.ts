@@ -4,7 +4,7 @@
  */
 import type { Comment, Display, Filters, InboxItem, Issue, Ordering, Person, Project, ReadState } from '@/model/schema'
 import { followers } from './notify'
-import { PRIORITY_NAMES, PRIORITY_ORDER, STATUSES, TAB_GROUPS, statusOf, type IssueTab, type Priority } from '@/model/status'
+import { PRIORITY_NAMES, PRIORITY_ORDER, TAB_GROUPS, allStatuses, isClosed as closedStatus, statusOf, type IssueTab, type Priority, type Status } from '@/model/status'
 
 /** for the Subscribers filter: who follows an issue depends on its comments and on who is in the workspace */
 export interface FollowContext {
@@ -31,10 +31,7 @@ export function inTab(issue: Issue, tab: IssueTab): boolean {
 }
 
 /** "completed" and "canceled" issues are hidden unless the display asks for them */
-export const isClosed = (issue: Issue) => {
-  const g = statusOf(issue.status).group
-  return g === 'completed' || g === 'canceled'
-}
+export const isClosed = (issue: Issue) => closedStatus(issue.status)
 
 const PRIORITY_RANK = new Map(PRIORITY_ORDER.map((p, i) => [p, i]))
 
@@ -96,8 +93,11 @@ export function groupIssues(issues: Issue[], display: Display, ctx: GroupCtx, ta
       return [{ key: 'all', value: null, title: 'All issues', issues: sorted }]
     case 'status': {
       const groups = TAB_GROUPS[tab]
-      const shown = (s: (typeof STATUSES)[number]) => groups.includes(s.group) && (display.showCompleted || (s.group !== 'completed' && s.group !== 'canceled'))
-      return STATUSES.filter((s) => everyGroup || shown(s)).map((s) => ({
+      const shown = (s: Status) => groups.includes(s.group) && (display.showCompleted || (s.group !== 'completed' && s.group !== 'canceled'))
+      // the team's statuses, and any other one its issues have (an issue that moved here from another team)
+      const known = allStatuses(ctx.team)
+      const others = [...new Set(sorted.map((i) => i.status))].filter((id) => !known.some((s) => s.id === id)).map(statusOf)
+      return [...known, ...others].filter((s) => everyGroup || shown(s)).map((s) => ({
         key: s.id,
         value: s.id,
         title: s.name,

@@ -9,12 +9,22 @@ import { PersonAvatar } from '@/components/Avatar'
 import type { PickerItem } from '@/components/Picker'
 import { issueRef, useData } from '@/data/store'
 import { isGuest, type Issue } from '@/model/schema'
-import { ESTIMATES, PRIORITY_ORDER, PRIORITY_NAMES, STATUSES, type Priority, type StatusId } from '@/model/status'
+import { ESTIMATES, PRIORITY_ORDER, PRIORITY_NAMES, workflow, type Priority, type StatusId } from '@/model/status'
 import { EstimateIcon } from './DueDate'
 import { estimateName } from './format'
 import { PriorityIcon, StatusIcon } from './icons'
 
-export const statusItems: PickerItem<StatusId>[] = STATUSES.map((s) => ({ value: s.id, label: s.name, icon: <StatusIcon status={s.id} /> }))
+/** the statuses a team uses (without a team, every status in the workspace) */
+export function useStatusItems(team?: string): PickerItem<StatusId>[] {
+  const custom = useData((s) => s.statuses)
+  return useMemo(
+    () =>
+      workflow(Object.values(custom))
+        .filter((s) => !team || !s.teams || s.teams.includes(team))
+        .map((s) => ({ value: s.id, label: s.name, icon: <StatusIcon status={s.id} /> })),
+    [custom, team],
+  )
+}
 
 export const priorityItems: PickerItem<Priority>[] = [0, ...PRIORITY_ORDER.filter((p) => p !== 0)].map((p) => ({
   value: p as Priority,

@@ -19,7 +19,7 @@ import { useComposer } from './composer'
 import { PriorityIcon, StatusIcon } from './icons'
 import { DueDatePicker, EstimateIcon } from './DueDate'
 import { dayName, estimateName } from './format'
-import { estimateItems, priorityItems, statusItems, useLabelItems, useParentItems, usePeopleItems, useProjectItems } from './pickers'
+import { estimateItems, priorityItems, useLabelItems, useParentItems, usePeopleItems, useProjectItems, useStatusItems } from './pickers'
 
 const chip =
   'inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-sm text-foreground/90 hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 data-[state=open]:bg-accent/60'
@@ -70,6 +70,7 @@ function Composer() {
   const [more, setMore] = useState(false)
   // the editor keeps its own text; a new key empties it after "create more"
   const [round, setRound] = useState(0)
+  const statusItems = useStatusItems(draft.team)
   const peopleItems = usePeopleItems()
   const labelItems = useLabelItems()
   const projectItems = useProjectItems(draft.team)
