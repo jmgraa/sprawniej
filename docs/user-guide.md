@@ -97,6 +97,12 @@ in any app. Nothing is ever really lost: every earlier version stays in the work
 A workspace can have statuses of its own on top of these, like **Blocked**: the Linear import brings each team's
 statuses over as they are. Each one is a kind of the statuses above (not started, in progress, finished, canceled), so
 it gets that kind's icon in its own colour and shows on the same tab. A team only offers the statuses it uses.
+The further along a started status is, the fuller its circle (In Progress is half full, In Review three quarters).
+
+**Settings › Statuses** lists every status by kind, with what it means. Add your own with **Add** next to a kind;
+rename, recolour (click its icon), describe, move up or down, or pick which teams use it. Deleting one moves its
+issues to the built-in status of the same kind (a deleted Blocked becomes Canceled). The built-in statuses can't be
+changed.
 
 ### Priority
 
@@ -159,6 +165,10 @@ press and hold an issue for a moment, then drag it.
 everything between the last one you picked and this one. Drag any picked issue and the others come along, side by
 side. The bar at the bottom changes the status, priority, assignee, labels or estimate of all of them (or archives
 or deletes them); `S`, `P`, `A`, `L` and `E` do the same. `Esc` lets go of them.
+
+**Right-click an issue** (on a phone, press and hold without moving) for a menu: open it, copy its number or link,
+change its status, priority, assignee, labels or estimate, archive it or delete it. Right-click one of several picked
+issues and the menu works on all of them.
 
 **Display** (next to List / Board) changes how the page looks, just for you:
 

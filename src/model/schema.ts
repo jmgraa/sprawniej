@@ -69,6 +69,10 @@ export const customStatusSchema = z
     position: z.number().optional(),
     /** the teams that use it (keys); missing or empty = every team */
     teams: z.array(z.string()).optional(),
+    /** what it means, in a sentence */
+    description: z.string().optional(),
+    /** where new issues wait to be looked at (Linear's triage); a backlog status with its own icon */
+    triage: z.boolean().optional(),
   })
   .passthrough()
 export type CustomStatus = z.infer<typeof customStatusSchema>

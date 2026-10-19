@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils'
 import { DueChip, EstimateChip } from './DueDate'
 import { PriorityIcon, StatusIcon } from './icons'
 import { GroupIcon } from './GroupIcon'
+import { IssueMenu } from './IssueMenu'
 import { SubIssueCount } from './SubIssueCount'
 import { TitleText } from './TitleText'
 import { dragAnnouncements } from './dragText'
@@ -40,45 +41,47 @@ function IssueCard({ issue, dragRef, dragProps, style, ghost, lifted }: CardProp
   const picked = useSelection((s) => s.ids.includes(issue.id))
   const carried = useSelection((s) => s.draggingMany) && picked && !lifted
   return (
-    <Link
-      ref={dragRef}
-      {...dragProps}
-      href={`/issue/${issueRef(issue)}`}
-      data-issue-id={lifted ? undefined : issue.id}
-      data-picked={picked || undefined}
-      aria-selected={picked || undefined}
-      // capture: the link itself leaves ⌘/Shift-clicks to the browser (new tab), before an onClick would run
-      onClickCapture={(e) => selectionClick(e, issue.id)}
-      style={style}
-      className={cn(
-        'flex flex-col gap-2 rounded-lg border bg-card p-3 text-[15px] shadow-xs hover:border-ring/60 focus-visible:border-ring focus-visible:outline-none touch-manipulation select-none [-webkit-touch-callout:none]',
-        (ghost || carried) && 'opacity-30',
-        picked && !lifted && 'bg-accent ring-1 ring-inset ring-ring/50',
-        lifted && 'cursor-grabbing rotate-1 shadow-lg',
-      )}
-    >
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <span className="tabular-nums">{issueRef(issue)}</span>
-        <span className="ml-auto">
-          <PersonAvatar person={assignee} login={issue.assignee} />
-        </span>
-      </div>
-      <div className="flex items-start gap-2">
-        <StatusIcon status={issue.status} className="mt-1" />
-        <span className="line-clamp-3">
-          <TitleText title={issue.title} />
-        </span>
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="inline-flex h-6 items-center rounded-md border px-1.5">
-          <PriorityIcon priority={issue.priority} />
-        </span>
-        {issue.dueDate && <DueChip day={issue.dueDate} closed={isClosed(issue)} />}
-        {issue.estimate != null && <EstimateChip points={issue.estimate} />}
-        <SubIssueCount id={issue.id} />
-        {issue.labels.map((id) => labels[id] && <LabelChip key={id} label={labels[id]} />)}
-      </div>
-    </Link>
+    <IssueMenu issue={issue} disabled={lifted}>
+      <Link
+        ref={dragRef}
+        {...dragProps}
+        href={`/issue/${issueRef(issue)}`}
+        data-issue-id={lifted ? undefined : issue.id}
+        data-picked={picked || undefined}
+        aria-selected={picked || undefined}
+        // capture: the link itself leaves ⌘/Shift-clicks to the browser (new tab), before an onClick would run
+        onClickCapture={(e) => selectionClick(e, issue.id)}
+        style={style}
+        className={cn(
+          'flex flex-col gap-2 rounded-lg border bg-card p-3 text-[15px] shadow-xs hover:border-ring/60 focus-visible:border-ring focus-visible:outline-none touch-manipulation select-none [-webkit-touch-callout:none]',
+          (ghost || carried) && 'opacity-30',
+          picked && !lifted && 'bg-accent ring-1 ring-inset ring-ring/50',
+          lifted && 'cursor-grabbing rotate-1 shadow-lg',
+        )}
+      >
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span className="tabular-nums">{issueRef(issue)}</span>
+          <span className="ml-auto">
+            <PersonAvatar person={assignee} login={issue.assignee} />
+          </span>
+        </div>
+        <div className="flex items-start gap-2">
+          <StatusIcon status={issue.status} className="mt-1" />
+          <span className="line-clamp-3">
+            <TitleText title={issue.title} />
+          </span>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex h-6 items-center rounded-md border px-1.5">
+            <PriorityIcon priority={issue.priority} />
+          </span>
+          {issue.dueDate && <DueChip day={issue.dueDate} closed={isClosed(issue)} />}
+          {issue.estimate != null && <EstimateChip points={issue.estimate} />}
+          <SubIssueCount id={issue.id} />
+          {issue.labels.map((id) => labels[id] && <LabelChip key={id} label={labels[id]} />)}
+        </div>
+      </Link>
+    </IssueMenu>
   )
 }
 

@@ -311,7 +311,7 @@ describe('importing statuses', () => {
     { id: 's-todo', name: 'Todo', type: 'unstarted', color: '#e2e2e2', position: 1, team: { id: 't-eng' } },
     { id: 's-review', name: 'In Review', type: 'started', color: '#0f783c', position: 3, team: { id: 't-eng' } },
     { id: 's-qa', name: 'QA', type: 'started', color: '#f2994a', position: 2.5, team: { id: 't-eng' } },
-    { id: 's-blocked', name: 'Blocked', type: 'canceled', color: '#eb5757', position: 6, team: { id: 't-eng' } },
+    { id: 's-blocked', name: 'Blocked', type: 'canceled', color: '#eb5757', description: 'Waiting on someone else ', position: 6, team: { id: 't-eng' } },
     { id: 's-triage', name: 'Triage', type: 'triage', color: '#fc7840', position: 0, team: { id: 't-eng' } },
     { id: 's-des-blocked', name: 'blocked', type: 'canceled', color: '#eb5757', position: 5, team: { id: 't-des' } },
     { id: 's-des-wait', name: 'Waiting', type: 'unstarted', color: '#bbbbbb', position: 2, team: { id: 't-des' } },
@@ -333,9 +333,9 @@ describe('importing statuses', () => {
 
   test('a team’s own statuses come over with their name, colour and kind; built-in names stay built-in', () => {
     expect(own.map((s) => s.name).sort()).toEqual(['Blocked', 'QA', 'Triage'])
-    expect(named('Blocked')).toMatchObject({ group: 'canceled', color: '#eb5757', position: 6, teams: ['ENG'] })
+    expect(named('Blocked')).toMatchObject({ group: 'canceled', color: '#eb5757', position: 6, teams: ['ENG'], description: 'Waiting on someone else' })
     expect(named('QA')).toMatchObject({ group: 'started', teams: ['ENG'] })
-    expect(named('Triage')).toMatchObject({ group: 'backlog' })
+    expect(named('Triage')).toMatchObject({ group: 'backlog', triage: true })
     expect(r.counts.statuses).toBe(3)
     // another team's statuses don't come with a team that wasn't chosen
     expect(own.some((s) => s.name === 'Waiting')).toBe(false)

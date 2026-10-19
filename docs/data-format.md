@@ -177,13 +177,14 @@ Only the author edits or deletes their comment.
 ## statuses/<id>.json
 
 ```json
-{ "id": "01J9…", "name": "Blocked", "group": "canceled", "color": "#eb5757", "position": 6, "teams": ["EXP"] }
+{ "id": "01J9…", "name": "Blocked", "group": "canceled", "color": "#eb5757", "position": 6, "teams": ["EXP"], "description": "Waiting on someone else" }
 ```
 
 A status on top of the built-in ones, usually brought over by the Linear import. `group` is one of `backlog`,
 `unstarted`, `started`, `completed`, `canceled`: it decides the icon, where the status sits (after the built-in
 statuses of its group, then by `position`) and which tab shows its issues. `teams` lists the teams that use it;
-missing or empty means every team.
+missing or empty means every team. `description` (optional) says what it means. `triage: true` (optional) marks
+where new issues wait to be looked at (Linear's triage): a `backlog` status drawn with the triage icon.
 
 Files never name one of these in `status` alone: they name the built-in status of its group standing in for it
 (`backlog`, `todo`, `in_progress`, `done`, `canceled`) and add the real one next to it (`customStatus`). A version

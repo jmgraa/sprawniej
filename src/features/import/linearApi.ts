@@ -93,6 +93,7 @@ export interface LState {
   name: string
   type: string
   color?: string
+  description?: string | null
   /** its place in its team's workflow */
   position?: number
   team?: { id: string } | null
@@ -225,7 +226,7 @@ export async function readTeams(
   // every team's, not only the chosen ones: a workspace view can name another team's status
   const states = await all<LState>(
     key,
-    `query($after: String) { workflowStates(first: 100, after: $after) { nodes { id name type color position team { id } } ${PAGE} } }`,
+    `query($after: String) { workflowStates(first: 100, after: $after) { nodes { id name type color description position team { id } } ${PAGE} } }`,
     {},
     (x: { workflowStates: Page<LState> }) => x.workflowStates,
   )

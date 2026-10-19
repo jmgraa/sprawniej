@@ -83,7 +83,7 @@ describe('grouping', () => {
       setCustomStatuses([])
     }
     // a status whose file is gone still shows, by its id
-    expect(statusOf('gone')).toMatchObject({ id: 'gone', name: 'gone' })
+    expect(statusOf('gone')).toMatchObject({ id: 'gone', name: 'Deleted status' })
   })
   test('showCompleted off hides closed groups and issues', () => {
     const groups = groupIssues(issues, { ...DEFAULT_DISPLAY, showCompleted: false }, ctx, 'all')

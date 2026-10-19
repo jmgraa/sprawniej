@@ -322,7 +322,16 @@ export function buildImport(data: LinearData, choices: ImportChoices, ws: Existi
       }
       status = { ...found, teams: [...found.teams, team] }
     } else {
-      status = { id: newId(), name: st.name, group: STATE_GROUPS[st.type] ?? 'backlog', color: st.color ?? '#8a8f98', position: st.position ?? 0, teams: [team] }
+      status = {
+        id: newId(),
+        name: st.name,
+        group: STATE_GROUPS[st.type] ?? 'backlog',
+        color: st.color ?? '#8a8f98',
+        position: st.position ?? 0,
+        teams: [team],
+        ...(st.description?.trim() && { description: st.description.trim() }),
+        ...(st.type === 'triage' && { triage: true }),
+      }
       counts.statuses++
     }
     files.set(paths.status(status.id), jsonToFile(status))

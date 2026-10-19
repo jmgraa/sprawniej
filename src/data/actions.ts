@@ -8,12 +8,12 @@
  */
 import { generateKeyBetween } from 'fractional-indexing'
 import { ulid } from 'ulid'
-import type { ArchivedIssue, Comment, Display, Filters, InboxItem, Issue, Label, Person, Project, ReadState, Team, View } from '@/model/schema'
+import type { ArchivedIssue, Comment, CustomStatus, Display, Filters, InboxItem, Issue, Label, Person, Project, ReadState, Team, View } from '@/model/schema'
 import { AUTO_ARCHIVE_MONTHS, FORMAT_VERSION, isGuest } from '@/model/schema'
-import { PRIORITY_NAMES, statusOf } from '@/model/status'
+import { PRIORITY_NAMES, STAND_IN, allStatuses, statusOf, type StatusGroup } from '@/model/status'
 import { BINARY_PREFIX } from '@/github/api'
 import { workspace } from '@/sync/engine'
-import { archiveLinesUnread, archiveMonth, archiveToFile, commentToFile as commentFile, inboxToFile, issueToFile, jsonToFile, parseArchive, paths, viewToFile } from './files'
+import { archiveLinesUnread, archiveMonth, archiveToFile, classify, commentToFile as commentFile, inboxToFile, issueToFile, jsonToFile, parseArchive, paths, viewToFile } from './files'
 import { commentNotes, followLists, followers, issueNotes, type Note } from './notify'
 import { changedOnly, keyBetween, keysBetween } from './ordering'
 import { applyFiles, archiveFiles, highestArchived, parsedFiles, pathOf } from './project'
@@ -565,12 +565,78 @@ export function deleteLabel(id: string) {
   save(files, `Delete label ${label.name}`)
 }
 
+// ---------- the workspace's own statuses ----------
+
+/** a status name nobody has yet, built-in ones included (two statuses with one name can't be told apart) */
+export const statusNameFree = (name: string, except?: string) =>
+  !!name.trim() && !allStatuses().some((s) => s.id !== except && s.name.toLowerCase() === name.trim().toLowerCase())
+
+/** a new status of the workspace's own, last in its group, for every team */
+export function createStatus(group: StatusGroup, name: string): CustomStatus | undefined {
+  if (!statusNameFree(name)) return
+  const own = Object.values(useData.getState().statuses)
+  const last = Math.max(0, ...own.filter((s) => s.group === group).map((s) => s.position ?? 0))
+  const status: CustomStatus = { id: ulid(), name: name.trim(), group, color: LABEL_COLORS[own.length % LABEL_COLORS.length], position: last + 1 }
+  save(one(paths.status(status.id), jsonToFile(status)), `Add status ${status.name}`)
+  return status
+}
+
+export function updateStatus(id: string, patch: Partial<Pick<CustomStatus, 'name' | 'color' | 'description' | 'teams'>>) {
+  const status = useData.getState().statuses[id]
+  if (!status || (patch.name !== undefined && !statusNameFree(patch.name, id))) return
+  const next: CustomStatus = { ...status, ...patch, ...(patch.name !== undefined && { name: patch.name.trim() }) }
+  if (!next.description?.trim()) delete next.description
+  if (!next.teams?.length) delete next.teams
+  save(one(paths.status(id), jsonToFile(next)), `Edit status ${next.name}`)
+}
+
+/** move a status one place up or down among the workspace's own statuses of its group */
+export function moveStatus(id: string, by: -1 | 1) {
+  const statuses = useData.getState().statuses
+  const status = statuses[id]
+  if (!status) return
+  const group = allStatuses().filter((s) => s.custom && s.group === status.group).map((s) => statuses[s.id])
+  const at = group.findIndex((s) => s.id === id)
+  const other = group[at + by]
+  if (!other) return
+  // positions are renumbered 1, 2, 3… so two statuses that had the same one still swap
+  const order = group.map((s) => s.id)
+  ;[order[at], order[at + by]] = [order[at + by], order[at]]
+  const files = new Map<string, string | null>()
+  order.forEach((sid, n) => {
+    if (statuses[sid].position !== n + 1) files.set(paths.status(sid), jsonToFile({ ...statuses[sid], position: n + 1 }))
+  })
+  save(files, `Move status ${status.name} ${by < 0 ? 'up' : 'down'}`)
+}
+
+/** how many issues have a status, archived ones not counted */
+export const statusUses = (id: string) => Object.values(useData.getState().issues).filter((i) => i.status === id).length
+
+/**
+ * Delete a status of the workspace's own. Its issues, archived ones too, move to the built-in status of its group
+ * (Blocked, a canceled kind, becomes Canceled); views that filter by it lose it like a deleted label.
+ */
+export function deleteStatus(id: string) {
+  const s = useData.getState()
+  const status = s.statuses[id]
+  if (!status) return
+  const to = STAND_IN[status.group]
+  const files = new Map<string, string | null>([[paths.status(id), null]])
+  for (const i of Object.values(s.issues)) if (i.status === id) files.set(paths.issue(i), issueToFile({ ...i, status: to, updatedAt: now() }))
+  for (const [path, text] of archiveFiles()) {
+    if (!text.includes(`"id":"${id}"`)) continue
+    editArchive(files, path, classify(path)!.parts[0], (records) => records.map((r) => (r.status === id ? { ...r, status: to } : r)))
+  }
+  dropFromViews(files, 'statuses', id)
+  save(files, `Delete status ${status.name}`)
+}
+
 /**
  * A label, project or team that's gone comes out of saved views' filters where others are left ("Bug or Design"
  * becomes "Design"). Where it was the only one, it stays: the view keeps showing nothing rather than suddenly showing
  * every issue, and its filter says the one it was about was deleted.
  */
-function dropFromViews(files: Map<string, string | null>, field: 'labels' | 'projects' | 'teams', id: string) {
+function dropFromViews(files: Map<string, string | null>, field: 'labels' | 'projects' | 'teams' | 'statuses', id: string) {
   for (const v of Object.values(useData.getState().views)) {
     if (files.has(paths.view(v.id))) continue // being deleted already
     const list = v.filters[field] as (string | null)[] | undefined

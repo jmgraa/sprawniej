@@ -21,6 +21,7 @@ import { Button } from '@/ui/button'
 import { Input } from '@/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select'
 import { LabelsSettings } from './LabelsSettings'
+import { StatusesSettings } from './StatusesSettings'
 import { LinkPersonDialog } from './LinkPersonDialog'
 import { useUnlinked, workOf } from './unlinked'
 
@@ -380,6 +381,12 @@ export function SettingsPage() {
         </Section>
         <Section title="Labels" description="Labels sort issues across teams. Renaming or recolouring one changes it on every issue.">
           <LabelsSettings />
+        </Section>
+        <Section
+          title="Statuses"
+          description="Every team has the built-in statuses. Add your own to any kind, like Blocked under Canceled: its issues get that kind's icon in your colour and show on the same tabs."
+        >
+          <StatusesSettings />
         </Section>
         <Section
           title="Archive"

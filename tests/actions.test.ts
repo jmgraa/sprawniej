@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
-import { createIssue, createProject, createView, deleteProject, updateView } from '@/data/actions'
+import { createIssue, createProject, createStatus, createView, deleteProject, deleteStatus, moveStatus, updateStatus, updateView } from '@/data/actions'
+import { allStatuses } from '@/model/status'
 import { DEFAULT_DISPLAY } from '@/data/displays'
 import { resetProjection } from '@/data/project'
 import { EMPTY, useData } from '@/data/store'
@@ -51,5 +52,35 @@ describe('issue numbers', () => {
     const moved = moveIssueToTeam(a.id, 'DES')!
     expect(moved.number).toBe(1)
     expect(createIssue({ team: 'ENG', title: 'four' }).number).toBe(4)
+  })
+})
+
+describe('statuses of the workspace’s own', () => {
+  const team = { key: 'ENG', name: 'Engineering', emoji: '🚀', members: ['ana'], createdAt: 'x' }
+  test('add, rename, describe, limit to teams, move', () => {
+    useData.setState({ teams: { ENG: team } })
+    const blocked = createStatus('canceled', ' Blocked ')!
+    const waiting = createStatus('canceled', 'Waiting')!
+    expect(createStatus('canceled', 'blocked')).toBeUndefined()
+    expect(createStatus('started', 'In Progress')).toBeUndefined() // a built-in name
+    updateStatus(blocked.id, { description: 'Stuck on someone else', teams: ['ENG'] })
+    updateStatus(waiting.id, { name: 'Blocked' }) // taken: nothing changes
+    expect(useData.getState().statuses[blocked.id]).toMatchObject({ name: 'Blocked', group: 'canceled', description: 'Stuck on someone else', teams: ['ENG'] })
+    expect(useData.getState().statuses[waiting.id].name).toBe('Waiting')
+    expect(allStatuses().filter((s) => s.custom).map((s) => s.name)).toEqual(['Blocked', 'Waiting'])
+    moveStatus(waiting.id, -1)
+    expect(allStatuses().filter((s) => s.custom).map((s) => s.name)).toEqual(['Waiting', 'Blocked'])
+    updateStatus(blocked.id, { description: ' ', teams: [] })
+    expect(useData.getState().statuses[blocked.id]).not.toHaveProperty('description')
+    expect(useData.getState().statuses[blocked.id]).not.toHaveProperty('teams')
+  })
+  test('deleting one moves its issues to the built-in status of its kind', () => {
+    useData.setState({ teams: { ENG: team } })
+    const blocked = createStatus('canceled', 'Blocked')!
+    const issue = createIssue({ team: 'ENG', title: 'Stuck', status: blocked.id })
+    expect(useData.getState().issues[issue.id].status).toBe(blocked.id)
+    deleteStatus(blocked.id)
+    expect(useData.getState().statuses[blocked.id]).toBeUndefined()
+    expect(useData.getState().issues[issue.id].status).toBe('canceled')
   })
 })

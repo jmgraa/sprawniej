@@ -20,16 +20,22 @@ export interface Status {
   color: string
   /** a workspace's own status: the teams that use it (missing = every team) */
   teams?: string[]
+  /** what it means */
+  description?: string
+  /** where new issues wait to be looked at: a backlog status with the triage icon */
+  triage?: boolean
+  /** one of the workspace's own (they can be edited in Settings) */
+  custom?: boolean
 }
 
 export const STATUSES: Status[] = [
-  { id: 'backlog', name: 'Backlog', group: 'backlog', color: 'var(--status-backlog)' },
-  { id: 'todo', name: 'Todo', group: 'unstarted', color: 'var(--status-todo)' },
-  { id: 'in_progress', name: 'In Progress', group: 'started', color: 'var(--status-progress)' },
-  { id: 'in_review', name: 'In Review', group: 'started', color: 'var(--status-review)' },
-  { id: 'done', name: 'Done', group: 'completed', color: 'var(--status-done)' },
-  { id: 'canceled', name: 'Canceled', group: 'canceled', color: 'var(--status-canceled)' },
-  { id: 'duplicate', name: 'Duplicate', group: 'canceled', color: 'var(--status-canceled)' },
+  { id: 'backlog', name: 'Backlog', group: 'backlog', color: 'var(--status-backlog)', description: 'We might do it some day.' },
+  { id: 'todo', name: 'Todo', group: 'unstarted', color: 'var(--status-todo)', description: 'We plan to do it soon.' },
+  { id: 'in_progress', name: 'In Progress', group: 'started', color: 'var(--status-progress)', description: 'Someone is working on it.' },
+  { id: 'in_review', name: 'In Review', group: 'started', color: 'var(--status-review)', description: 'It’s done and waiting for someone to check it.' },
+  { id: 'done', name: 'Done', group: 'completed', color: 'var(--status-done)', description: 'Finished.' },
+  { id: 'canceled', name: 'Canceled', group: 'canceled', color: 'var(--status-canceled)', description: 'We decided not to do it.' },
+  { id: 'duplicate', name: 'Duplicate', group: 'canceled', color: 'var(--status-canceled)', description: 'Someone already reported the same thing.' },
 ]
 
 /**
@@ -40,7 +46,20 @@ export function workflow(custom: Iterable<CustomStatus>): Status[] {
   const own = [...custom].sort((a, b) => (a.position ?? 0) - (b.position ?? 0) || a.name.localeCompare(b.name))
   return STATUS_GROUPS.flatMap((g) => [
     ...STATUSES.filter((s) => s.group === g),
-    ...own.filter((s) => s.group === g).map((s): Status => ({ id: s.id, name: s.name, group: s.group, color: s.color, ...(s.teams?.length && { teams: s.teams }) })),
+    ...own
+      .filter((s) => s.group === g)
+      .map(
+        (s): Status => ({
+          id: s.id,
+          name: s.name,
+          group: s.group,
+          color: s.color,
+          custom: true,
+          ...(s.teams?.length && { teams: s.teams }),
+          ...(s.description && { description: s.description }),
+          ...(s.triage && { triage: true }),
+        }),
+      ),
   ])
 }
 
@@ -56,10 +75,19 @@ export function setCustomStatuses(custom: Iterable<CustomStatus>) {
 /** every status, in order; with a team, only the ones that team uses */
 export const allStatuses = (team?: string): Status[] => (team ? all.filter((s) => !s.teams || s.teams.includes(team)) : all)
 
-/** a status whose file is gone still shows, by its id, so nothing breaks */
 export type FindStatus = (id: StatusId) => Status
 
-export const statusOf = (id: StatusId): Status => byId.get(id) ?? { id, name: id, group: 'unstarted', color: 'var(--status-backlog)' }
+/** a status whose file is gone (deleted, say) still shows, so nothing breaks */
+export const statusOf = (id: StatusId): Status => byId.get(id) ?? { id, name: 'Deleted status', group: 'unstarted', color: 'var(--status-backlog)' }
+
+/**
+ * How much of a started status's circle is filled: the later in the workflow, the fuller (½, ¾, ⅞…), so
+ * In Progress is half full and In Review three quarters
+ */
+export function startedFill(id: StatusId): number {
+  const n = all.filter((s) => s.group === 'started').findIndex((s) => s.id === id)
+  return 1 - 0.5 ** (Math.max(n, 0) + 1)
+}
 
 /**
  * The built-in status that stands in for a workspace's own status in the files (`status: canceled` next to
