@@ -71,7 +71,12 @@ export function Picker<V>(props: Props<V>) {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild={asChild}>{children}</PopoverTrigger>
-      <PopoverContent align={align} className="w-64 p-0" onClick={(e) => e.stopPropagation()}>
+      <PopoverContent
+        align={align}
+        className="w-64 p-0"
+        onClick={(e) => e.stopPropagation()}
+        onFocusOutside={(e) => e.preventDefault()}
+      >
         <Command filter={exactFirst}>
           <CommandInput placeholder={placeholder} value={query} onValueChange={setQuery} />
           <CommandList>
